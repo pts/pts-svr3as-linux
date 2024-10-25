@@ -11,9 +11,14 @@ def main(args):
   #bs = 1 << 17  # Block size.
   # bs = 0x100
 
-  bd = open(b'import.tmp/sds1.img', 'rb').read()
+  #bd = open(b'import.tmp/sds1.img', 'rb').read()
   #a = open('svr3as-1988-05-27.svr3', 'rb')  # incbin ?, 0x21b82, 0x1b774
-  a = open('svr3ld-1988-05-27.svr3')  # incbin ?, 0x3d349, 0x19a64
+  #a = open('svr3ld-1988-05-27.svr3')  # incbin ?, 0x3d349, 0x19a64
+  #bs = 1 << 17  # Block size.
+
+  bd = open(b'import.tmp/41base2.img', 'rb').read()
+  #a = open('svr3as-1987-10-28.svr3', 'rb')  # incbin ?, 0x2b521, 0x1b26c
+  a = open('svr3ld-1987-10-28.svr3')  # incbin ?, 0x467e2, 0x196d4
   bs = 1 << 17  # Block size.
 
   i = -1

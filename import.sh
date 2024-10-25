@@ -103,6 +103,51 @@ for f in "$@"; do  # Import each specified file.
     cmp import.tmp/svr3ld-1988-05-27.svr3 svr3ld-1988-05-27.svr3 2>/dev/null || cp -ai import.tmp/svr3ld-1988-05-27.svr3 svr3ld-1988-05-27.svr3
     TZ=GMT touch -d '1988-05-27 12:00:00' import.tmp/svr3as-1988-05-27.svr3 import.tmp/svr3ld-1988-05-27.svr3
   fi
+
+  if test "$hash" = "93845a123ee5a2c8c18b79b03b5453869823cd94203cecbeff02b64559a1f934  -"; then  # SYSV_386_3.1_1.2mb_disk1_missing.zip
+    # Download http://bitsavers.org/bits/ATT/SYSV_386/SYSV_386_3.1_1.2mb_disk1_missing.zip
+    # Download from http://bitsavers.org/bits/ATT/SYSV_386/
+    case "$f" in /*) ff="$f" ;; *) f="./$f"; ff="../$f" ;; esac
+    rm -f import.tmp/41base2.imd
+    do_del_tmp=1
+    test -d import.tmp || mkdir import.tmp
+    unzip -p "$f" SYSV_386_3.1_1.2mb_disk1_missing/41BASE2.IMD >import.tmp/41base2.imd
+    f=import.tmp/41base2.imd
+    hash="$(sha256sum <"$f")"
+    test "$hash" = "6a7cdbc4ed8d061c95bb879d92d335a4191b26a2d859f5872bfb34bc992322a7  -"
+    # Fall through.
+  fi
+  if test "$hash" = "6a7cdbc4ed8d061c95bb879d92d335a4191b26a2d859f5872bfb34bc992322a7  -"; then  # SYSV_386_3.1_1.2mb_disk1_missing/41BASE2.IMD
+    case "$f" in /*) ff="$f" ;; *) f="./$f"; ff="../$f" ;; esac
+    rm -f import.tmp/41base2.import.imd import.tmp/41base2.img
+    do_del_tmp=1
+    test -d import.tmp || mkdir import.tmp
+    ln -s "$ff" import.tmp/41base2.import.imd  # disk-analyse requires the .imd extension.
+    disk-analyse import.tmp/41base2.import.imd import.tmp/41base2.img  # Slow.
+    f=import.tmp/41base2.img
+    hash="$(sha256sum <"$f")"
+    test "$hash" = "be7619558c5484003b7372ece77d646235bb5a9fb53ed24cfc141a30ee11c1cd  -"
+    # Fall through.
+  fi
+  if test "$hash" = "be7619558c5484003b7372ece77d646235bb5a9fb53ed24cfc141a30ee11c1cd  -";  then   # 41base2.img
+    do_del_tmp=1
+    test -d import.tmp || mkdir import.tmp
+    case "$f" in /*) ff="$f" ;; *) f="./$f"; ff="../$f" ;; esac
+    rm -f import.tmp/f.bin import.tmp/f.nasm import.tmp/*.svr3
+    ln -s "$ff" import.tmp/f.bin
+    echo 'incbin "import.tmp/f.bin", 0x2b521, 0x1b26c' >import.tmp/f.nasm
+    nasm -O0 -f bin -o import.tmp/svr3as-1987-10-28.svr3 import.tmp/f.nasm
+    test "$(sha256sum <import.tmp/svr3as-1987-10-28.svr3)" = "877f6a1f614a0fd3fe1864b3f89a6f379b942a7b6c415b9f02987018a9a52c3d  -"
+    cmp import.tmp/svr3as-1987-10-28.svr3 svr3as-1987-10-28.svr3 2>/dev/null || cp -ai import.tmp/svr3as-1987-10-28.svr3 svr3as-1987-10-28.svr3
+    #
+    rm -f import.tmp/f.bin
+    ln -s "$ff" import.tmp/f.bin
+    echo 'incbin "import.tmp/f.bin", 0x467e2, 0x196d4' >import.tmp/f.nasm
+    nasm -O0 -f bin -o import.tmp/svr3ld-1987-10-28.svr3 import.tmp/f.nasm
+    test "$(sha256sum <import.tmp/svr3ld-1987-10-28.svr3)" = "dbd3392779e515dc1ccbec86a64e28ac5af280290b6115ecc57aee23d78b7d1d  -"
+    TZ=GMT touch -d '1987-10-28 12:00:00' import.tmp/svr3as-1987-10-28.svr3 import.tmp/svr3ld-1987-10-28.svr3
+    cmp import.tmp/svr3ld-1987-10-28.svr3 svr3ld-1987-10-28.svr3 2>/dev/null || cp -ai import.tmp/svr3ld-1987-10-28.svr3 svr3ld-1987-10-28.svr3
+  fi
   if test "$do_del_tmp"; then rm -rf import.tmp; fi
 done
 
@@ -110,5 +155,7 @@ test ! -f svr3as-1989-10-03.svr3 || test "$(sha256sum <svr3as-1989-10-03.svr3)" 
 test ! -f svr3ld-1989-10-03.svr3 || test "$(sha256sum <svr3ld-1989-10-03.svr3)" = "fd019d3e9b3fd5608c3d3bab28ac45d5a3d9d76751ffdea07bc182227d619e14  -"
 test ! -f svr3as-1988-05-27.svr3 || test "$(sha256sum <svr3as-1988-05-27.svr3)" = "ab7048e14136b142c0264d4f13e9771a05c489661acab562b37929931c0f4c04  -"
 test ! -f svr3ld-1988-05-27.svr3 || test "$(sha256sum <svr3ld-1988-05-27.svr3)" = "9205364de3df93659ede3ac8d2dabe76151c860090af9b5a71f9ff0edef64d16  -"
+test ! -f svr3as-1987-10-28.svr3 || test "$(sha256sum <svr3as-1987-10-28.svr3)" = "877f6a1f614a0fd3fe1864b3f89a6f379b942a7b6c415b9f02987018a9a52c3d  -"
+test ! -f svr3ld-1987-10-28.svr3 || test "$(sha256sum <svr3ld-1987-10-28.svr3)" = "dbd3392779e515dc1ccbec86a64e28ac5af280290b6115ecc57aee23d78b7d1d  -"
 
 : "$0" OK.
