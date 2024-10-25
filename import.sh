@@ -41,6 +41,7 @@ for f in "$@"; do  # Import each specified file.
     do_del_tmp=1
     mkdir import.tmp
     (cd import.tmp && "$mydira/tools/tiny7zx" x "$f") || exit "$?"
+    # This is hard to port to Win32,  because of the non-ASCII character (¼) in the pathname.
     f="import.tmp/Interactive UNIX386 2.2 rel3.2 (5¼)/disk23.img"; hash="$(sha256sum <"$f")"; test "$hash"
     test "$hash" = "83beba85b33469d17b2622f4748edfd071f73e389d9588af0a57407937ca0f0e  -"
     set +ex
