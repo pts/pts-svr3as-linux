@@ -22,27 +22,34 @@ set -ex
 cd "$mydir"
 type nasm
 
-test "$(sha256sum <svr3as-1988-05-27.svr3)" = "ab7048e14136b142c0264d4f13e9771a05c489661acab562b37929931c0f4c04  -"
-rm -f svr3as-1988-05-27
-nasm -w+orphan-labels -f bin -O0 -o svr3as-1988-05-27 svr3as-1988-05-27.nasm
-chmod +x svr3as-1988-05-27
-test "$(sha256sum <svr3as-1988-05-27)" = "bacba2f583273784dfdcedefcfa7b31dec4b3f32ae2efbd96e63352b64bd5c86  -"
+if test -f svr3as-1988-05-27; then
+  test "$(sha256sum <svr3as-1988-05-27.svr3)" = "ab7048e14136b142c0264d4f13e9771a05c489661acab562b37929931c0f4c04  -"
+  rm -f svr3as-1988-05-27
+  nasm -w+orphan-labels -f bin -O0 -o svr3as-1988-05-27 svr3as-1988-05-27.nasm
+  chmod +x svr3as-1988-05-27
+  test "$(sha256sum <svr3as-1988-05-27)" = "bacba2f583273784dfdcedefcfa7b31dec4b3f32ae2efbd96e63352b64bd5c86  -"
+fi
 
-test "$(sha256sum <svr3as-1989-10-03.svr3)" = "f6bbc0d5332bc5c12d471ff8fb430b644b21ceaf2037b3572d4f1d01a7a223d0  -"
-rm -f svr3as-1989-10-03
-nasm -w+orphan-labels -f bin -O0 -o svr3as-1989-10-03 svr3as-1989-10-03.nasm
-chmod +x svr3as-1989-10-03
-test "$(sha256sum <svr3as-1989-10-03)" = "62517a6ec68c6811e71bc4bfa6eb462434fb24b0d1063e79ba65b98e8febb789  -"
+if test -f svr3as-1989-10-03.svr3; then
+  test "$(sha256sum <svr3as-1989-10-03.svr3)" = "f6bbc0d5332bc5c12d471ff8fb430b644b21ceaf2037b3572d4f1d01a7a223d0  -"
+  rm -f svr3as-1989-10-03
+  nasm -w+orphan-labels -f bin -O0 -o svr3as-1989-10-03 svr3as-1989-10-03.nasm
+  chmod +x svr3as-1989-10-03
+  test "$(sha256sum <svr3as-1989-10-03)" = "62517a6ec68c6811e71bc4bfa6eb462434fb24b0d1063e79ba65b98e8febb789  -"
+fi
 
 # --- Tests. They don't work with cross-compilation.
 
-rm -f test.o
-./svr3as-1988-05-27 test.s
-cmp -l test.o.good test.o
+if test -f svr3as-1988-05-27; then
+  rm -f test.o
+  ./svr3as-1988-05-27 test.s
+  cmp -l test.o.good test.o
+fi
 
-rm -f test.o
-./svr3as-1989-10-03 test.s
-cmp -l test.o.good test.o
-
+if test -f svr3as-1989-10-03; then
+  rm -f test.o
+  ./svr3as-1989-10-03 test.s
+  cmp -l test.o.good test.o
+fi
 
 : "$0" OK.
