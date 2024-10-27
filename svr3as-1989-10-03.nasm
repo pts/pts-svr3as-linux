@@ -389,8 +389,8 @@ section .xtext
     ;call emu_fatal_unsupported_syscall
     fill_until 0x3efb80-SUB4
   incbin_until 0x3efd4c-SUB4
-    times 7 nop  ; In malloc(...), prevent a `call brk' after sbrk(...) has failed.
-    assert_addr 0x3efd53-SUB4
+    times 5 nop  ; In malloc(...), prevent a `call brk' after sbrk(...) has failed.
+    assert_addr 0x3efd51-SUB4
   incbin_until 0x3effc4-SUB4
     open:
     push strict byte SYS_OPEN

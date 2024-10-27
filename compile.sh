@@ -27,7 +27,7 @@ if test -f svr3as-1988-05-27; then
   rm -f svr3as-1988-05-27
   nasm -w+orphan-labels -f bin -O0 -o svr3as-1988-05-27 svr3as-1988-05-27.nasm
   chmod +x svr3as-1988-05-27
-  test "$(sha256sum <svr3as-1988-05-27)" = "bacba2f583273784dfdcedefcfa7b31dec4b3f32ae2efbd96e63352b64bd5c86  -"
+  test "$(sha256sum <svr3as-1988-05-27)" = "c905a43a52718cac373962c2f4617fed522d874f70c0423541c3c2e10096d6dd  -"
 fi
 
 if test -f svr3as-1989-10-03.svr3; then
@@ -35,7 +35,7 @@ if test -f svr3as-1989-10-03.svr3; then
   rm -f svr3as-1989-10-03
   nasm -w+orphan-labels -f bin -O0 -o svr3as-1989-10-03 svr3as-1989-10-03.nasm
   chmod +x svr3as-1989-10-03
-  test "$(sha256sum <svr3as-1989-10-03)" = "62517a6ec68c6811e71bc4bfa6eb462434fb24b0d1063e79ba65b98e8febb789  -"
+  test "$(sha256sum <svr3as-1989-10-03)" = "58559fd25dbc756a8f1ed4663d0227eca4ff75ff6d5ab103a4451dd91e8843b6  -"
 fi
 
 # --- Tests. They don't work with cross-compilation.
