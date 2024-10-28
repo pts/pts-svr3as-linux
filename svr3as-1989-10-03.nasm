@@ -303,7 +303,7 @@ section .xtext
     ; wouldn't have a data race in the signal handler.
     li3_syscall  ; Doesn't return.
     fill_until 0x3e797c
-    ru 0x3e9e1c
+  ru 0x3e9e1c
   incbin_until 0x3e9ee4
     fill_until 0x3e9eef, nop  ; Omit call to time(...), because the result is not used.
   ru 0x3ea55c
