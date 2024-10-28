@@ -92,7 +92,8 @@ systems have *m4* installed.
 
 AT&T Unix System V Release 3 (SVR3, released in 1987), was the first popular
 Unix operating system for the 32-bit i386 architecture (starting with the
-Intel 80386 CPU). (386/ix may be an earler port of Unix to i386.) The
+Intel 80386 CPU). (386/ix was earler port of Unix to i386, released [in
+1985](https://de.wikipedia.org/wiki/Interactive_Unix).) The
 infamous AT&T assembly syntax comes from the i386 assembler in SVR3: e.g.
 `lea ecx, [eax+ebx*4+5]` is in Intel syntax, and `lea 5(%eax,%ebx,4), %ecx`
 is the corresponding AT&T syntax. Actually, it comes from [PDP-11 assembly
