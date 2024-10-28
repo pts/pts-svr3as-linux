@@ -1,12 +1,12 @@
-# pts-svr3as-linux: binary port of SVR3 (AT&T UNIX System V) assembler and linker to Linux
+# pts-svr3as-linux: binary port of SVR3 (SysV Release 3) assembler and linker to Linux
 
 pts-svr3as-linux contains binary ports of multiple versions of the SVR3
-(AT&T UNIX System V) assembler and linker to Linux. The resulting ELF-32
-program files run on Linux i386 and Linux amd64 without emulation, and
-generate SVR3 COFF i386 object and executable files. The pts-svr3as-linux
-doesn't contain any (copyrighted) code from AT&T: you have to provide the
-SVR3 i386 executable program files, and pts-svr3as-linux converts them to
-Linux i386 executables.
+(SysV Release 3, AT&T Unix System V Release 3) assembler and linker to
+Linux. The resulting ELF-32 program files run on Linux i386 and Linux amd64
+without emulation, and generate SVR3 COFF i386 object and executable files.
+The pts-svr3as-linux doesn't contain any (copyrighted) code from AT&T: you
+have to provide the SVR3 i386 executable program files, and pts-svr3as-linux
+converts them to Linux i386 executables.
 
 The following versions are provided:
 
