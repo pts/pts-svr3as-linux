@@ -2,7 +2,7 @@
 ; svr3as-1988-05-27.nasm: a Linux i386 port of the SVR3 3.2 SDS 4.1.5 1988-05-27 i386 assembler as(1)
 ; by pts@fazekas.hu at Tue Oct 22 21:02:06 CEST 2024
 ;
-; Compile with: nasm -w+orphan-labels -f bin -O0 -o svr3as-1988-05-27 svr3as-1988-05-27.nasm && chmod +x svr3as-1988-05-27 
+; Compile with: nasm -w+orphan-labels -f bin -O0 -o svr3as-1988-05-27 svr3as-1988-05-27.nasm && chmod +x svr3as-1988-05-27
 ; Run on Linux (creating test.o of COFF format): ./svr3as-1988-05-27.nasm: test.s && cmp -l test.o.good test.o
 ;
 ; This program runs natively on Linux i386 and Linux amd64 systems, even
