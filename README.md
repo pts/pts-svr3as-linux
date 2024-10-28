@@ -48,7 +48,7 @@ Step-by-step instructions:
 3. Run `./compile.sh`. This builds the following files, provided that the
    `*.svr3` input files above have been obtained:
 
-   * `svr3as-1988-10-28`
+   * `svr3as-1987-10-28`
    * `svr3as-1988-05-27`
    * `svr3as-1989-10-03`
 
@@ -87,3 +87,35 @@ Please note that in the Linux i386 port the `as -m` command-line flag
 because the necessary *cm4defs* and *cm4tvdefs* files are not available on
 Linux in the directories the assembler is looking at, and not all Linux
 systems have *m4* installed.
+
+## Why is the SVR3 assembler significant?
+
+AT&T Unix System V Release 3 (SVR3, released in 1987), was the first popular
+Unix operating system for the 32-bit i386 architecture (starting with the
+Intel 80386 CPU). (386/ix may be an earler port of Unix to i386.) The
+infamous AT&T assembly syntax comes from the i386 assembler in SVR3: e.g.
+`lea ecx, [eax+ebx*4+5]` is in Intel syntax, and `lea 5(%eax,%ebx,4), %ecx`
+is the corresponding AT&T syntax. Actually, it comes from [PDP-11 assembly
+syntax](https://en.wikipedia.org/wiki/PDP-11_architecture#Example_code):
+`MOV 6(SP), R0` in PDP-11 syntax is similar to `mov 6(%esp), %eax` in AT&T
+i386 syntax.
+
+Also, the i386 assembler in SVR3, released in 1987 (e.g. program file
+`svr3as-1987-10-28.svr3` in pts-svr3as-linux), is one of the earliest known
+assemblers targeting i386. Microsoft Macro Assembler (MASM) 5.00 (released
+on 1987-07-31) is the other one. Borland Turbo Assembler (TASM) followed
+suit a few years later: 1.0 was released on 1988-08-29, 1.01 (with fixes of
+show-stopper bugs in 1.0) was released on 1989-05-02.
+
+Assemblers using the AT&T i386 syntax:
+
+* the SVR3 assembler (earliest remaining file date 1987-10-28)
+* the SVR4 assembler (earliest remaining file date 1990-04-19)
+* GNU Assembler (released for i386 in about 1990), now part of GNU Binutils,
+  still in active development in 2024
+* the assembler in Sun Solaris is based on the SVR4 assembler, later
+  versions used the GNU Assembler
+* the Mark Williams 80386 assembler (earliest remaining file date
+  1992-09-11, part of Coherent 4.x)
+* [vasm](http://sun.hasenbraten.de/vasm/) by Volker Barthelmann,
+  still in active development in 2024
