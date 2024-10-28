@@ -1,9 +1,9 @@
 ;
-; asi3.nasm: a Linux i386 port of the SVR3 3.2 SDS 4.1.5 1988-05-27 i386 assembler as(1)
+; svr3as-1987-10-28.nasm: a Linux i386 port of the SVR3 3.2 SDS 4.1 1987-10-28 (1987-10.1) i386 assembler as(1)
 ; by pts@fazekas.hu at Mon Oct 28 00:13:49 CET 2024
 ;
-; Compile with: win32linuxcc asi3.nasm
-; Run with (creating test.o of COFF format): qemu-i386 ./asi3 test.s
+; Compile with: nasm -w+orphan-labels -f bin -O0 -o svr3as-1987-10-28 svr3as-1987-10-28.nasm && chmod +x svr3as-1987-10-28 
+; Run on Linux (creating test.o of COFF format): ./svr3as-1987-10-28.nasm: test.s && cmp -l test.o.good test.o
 ;
 ; This program runs natively on Linux i386 and Linux amd64 systems, even
 ; those which have `sysctl -w vm.mmap_min_addr=65536' (like many Linux
@@ -20,7 +20,7 @@
 %else
 
 
-  %include 'win32linuxcc.inc.nasm'
+  %include 'binpatch.inc.nasm'
 
   ; `objdump -x' output (Size mostly incorrect):
   ; Idx Name          Size      VMA       File off  Algn
@@ -29,7 +29,7 @@
   ;   2 .bss          0x40c23c  0x40c23c  0x000000  2**2  ALLOC, READONLY, NOREAD
   ;   3 .comment      0x000030  0x000000  0x01b23c  2**2  CONTENTS, READONLY, DEBUGGING, NOREAD
 
-  define.xbin 'asi'
+  define.xbin 'svr3as-1987-10-28.svr3'
   define.xtext 0x00ff34, 0x3f0074, 0x000074
   define.xdata 0x00b294, 0x400fa8, 0x00ffa8, 0x00b294+0x10f40
   opt.o0  ; Make NASM compilation faster. For this file the output is the same

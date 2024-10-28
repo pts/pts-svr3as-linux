@@ -22,6 +22,14 @@ set -ex
 cd "$mydir"
 type nasm
 
+if test -f svr3as-1987-10-28.svr3; then
+  test "$(sha256sum <svr3as-1987-10-28.svr3)" = "877f6a1f614a0fd3fe1864b3f89a6f379b942a7b6c415b9f02987018a9a52c3d  -"
+  rm -f svr3as-1987-10-28
+  nasm -w+orphan-labels -f bin -O0 -o svr3as-1987-10-28 svr3as-1987-10-28.nasm
+  chmod +x svr3as-1987-10-28
+  test "$(sha256sum <svr3as-1987-10-28)" = "2568faa805770d86f40dd585a3cbeb70e42e38e8a524f6256cf95ba5ee3c9cea  -"
+fi
+
 if test -f svr3as-1988-05-27; then
   test "$(sha256sum <svr3as-1988-05-27.svr3)" = "ab7048e14136b142c0264d4f13e9771a05c489661acab562b37929931c0f4c04  -"
   rm -f svr3as-1988-05-27
@@ -40,16 +48,11 @@ fi
 
 # --- Tests. They don't work with cross-compilation.
 
-if test -f svr3as-1988-05-27; then
+for prog in svr3as-1989-10-03 svr3as-1988-05-27 svr3as-1989-10-03; do
+  test -f "$prog" || continue
   rm -f test.o
-  ./svr3as-1988-05-27 test.s
+  ./"$prog" test.s
   cmp -l test.o.good test.o
-fi
-
-if test -f svr3as-1989-10-03; then
-  rm -f test.o
-  ./svr3as-1989-10-03 test.s
-  cmp -l test.o.good test.o
-fi
+done
 
 : "$0" OK.
