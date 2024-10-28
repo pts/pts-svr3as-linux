@@ -332,8 +332,13 @@ section .xtext
     ; We don't implement time(...), because we've removed the only caller.
     time:
     hlt
-    ;mov eax, SYS_TIME
-    ;call emu_fatal_unsupported_syscall
+    ;push ebx  ; Save.
+    ;push strict byte SYS_TIME
+    ;pop eax
+    ;mov ebx, [esp+2*4]
+    ;li3_syscall
+    ;pop ebx  ; Restore.
+    ;ret  ; Assume that it always succeds (and returns the timestamp, even if negative).
     fill_until 0x3ed414
   incbin_until 0x3ed660
     access:
