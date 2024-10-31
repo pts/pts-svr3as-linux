@@ -151,7 +151,7 @@ Linux_TCGETS equ 0x5401  ; 'T'<<8|1.
   int 0x80
 %endm
 
-%macro ru 1  ; Relocate pointer-to-.text value 0x0000???? to 0x003e????.
+%macro ru 1  ; Relocate pointer-to-.text value 0x0000???? to 0x003f????.
   iu %1  ; Like `incbin_until %1', but faster, because it doesn't do any address checks.
   db 0x3f
 %endm
