@@ -63,6 +63,7 @@ main requ 0x3e0450
 _cleanup requ 0x3ef630
 environ requ 0x400174-SUB4
 errno requ 0x40b728-SUB4
+dlflag equ 0x409d6c-SUB4
 
 ; SYSV SVR3 i386 syscall numbers.
 ;
@@ -264,6 +265,20 @@ section .xtext
     %endif  ; Not needed.
 
     fill_until 0x3e011c
+  incbin_until 0x3e01a4
+    ; This is original functionality: checks for 'l', sets dlflag to 1, then jumps to flagcont (0x3f02e6).
+    getargs__dflag:
+    jmp_to_flagcont equ $+0x196-0x1a4
+    cmp al, 'l'
+    jne strict short .not_l
+    mov byte [dlflag], 1
+    jmp strict short jmp_to_flagcont
+    .not_l:
+    cmp al, 't'  ; New functionality: Set timestamp in coff_filehdr_f_timdat to 0, for reproducible builds.
+    jne strict short jmp_to_flagcont
+    and dword [coff_filehdr_f_timdat], strict byte 0
+    jmp strict short jmp_to_flagcont
+    fill_until 0x3e01c0
   incbin_until 0x3e0614
     run_m4:  ; Called when the `-m' command-line flag is specified.
     ; We don't support running m4 on Linux, because the Linux system
@@ -305,7 +320,15 @@ section .xtext
     fill_until 0x3e797c
   ru 0x3e9e1c
   incbin_until 0x3e9ee4
-    fill_until 0x3e9eef, nop  ; Omit call to time(...), because the result is not used.
+    ; The original call to `time' was here, when populting the coff_filehdr.
+    push ebx  ; Save.
+    push strict byte SYS_TIME
+    pop eax
+    mov ebx, [coff_filehdr_f_timdat]
+    li3_syscall
+    pop ebx  ; Restore.
+    and dword [coff_filehdr_f_opthr_and_f_flags], strict byte 0
+    fill_until 0x3e9ef8
   ru 0x3ea55c
   incbin_until 0x3ed1c0
     ; We don't implement execve(...), because we've removed its only caller
@@ -960,6 +983,9 @@ section .xdata
   r 0x409d52
   r 0x409d56
   r 0x409d5a
+  incbin_until 0x40a2c8-SUB4
+    coff_filehdr_f_timdat: dd coff_filehdr_f_timdat  ; NULL here means write 0 as the timestamp, for reproducible builds.
+    coff_filehdr_f_opthr_and_f_flags equ coff_filehdr_f_timdat+3*4
   r 0x40a80e
   r 0x40a812
   r 0x40a816
