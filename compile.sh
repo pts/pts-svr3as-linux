@@ -48,7 +48,7 @@ fi
 
 # --- Tests. They don't work with cross-compilation.
 
-for prog in svr3as-1989-10-03 svr3as-1988-05-27 svr3as-1989-10-03; do
+for prog in svr3as-1987-10-28 svr3as-1988-05-27 svr3as-1989-10-03; do
   test -f "$prog" || continue
   rm -f test.o
   ./"$prog" test.s
