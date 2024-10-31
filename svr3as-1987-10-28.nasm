@@ -82,7 +82,7 @@ SYS_GETPID equ 20
 SYS_FSTAT equ 28  ; On Linux, SYS_oldfstat is 28. SYS_fstat is is 108.
 SYS_ACCESS equ 33
 SYS_KILL equ 37
-SYS_SIGNAL equ 48  ; The Linux syscall 48 matches the SYSV behavior (not the BSD behavior). Good. !! qemu-i386 doesn't support SYS_SIGNAL == 48, use sigaction(2) instead.
+SYS_SIGNAL equ 48  ; The Linux syscall 48 matches the SYSV behavior (not the BSD behavior). Good.
 SYS_IOCTL equ 54  ; The ioctl(2) requests are incompatible with Linux.
 SYS_EXECVE equ 59  ; On Linux, SYS_execve is 11.
 
