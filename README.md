@@ -88,6 +88,31 @@ because the necessary *cm4defs* and *cm4tvdefs* files are not available on
 Linux in the directories the assembler is looking at, and not all Linux
 systems have *m4* installed.
 
+## Features
+
+All 3 assembler versions have the following features:
+
+* COFF i386 object file output format.
+* No 486, Pentium etc. instructions or features, only 386.
+* Instructions: aaa, aad, aam, aas, adc, adcb, adcl, adcw, add, addb, addl, addr16, addw, and, andb, andl, andw, bound, boundl, boundw, bsfl, bsfw, bsrl, bsrw, btcl, btcw, btl, btrl, btrw, btsl, btsw, btw, call, cbtw, clc, cld, cli, clr, clrb, clrl, clrw, cltd, cmc, cmp, cmpb, cmpl, cmps, cmpsb, cmpsl, cmpsw, cmpw, cwtd, cwtl, daa, das, data16, dec, decb, decl, decw, div, divb, divl, divw, enter, esc, hlt, idiv, idivb, idivl, idivw, imul, imulb, imull, imulw, in, inb, inc, incb, incl, incw, inl, ins, insb, insl, insw, int, into, inw, iret, ja, jae, jb, jbe, jc, jcxz, je, jg, jge, jl, jle, jmp, jna, jnae, jnb, jnbe, jnc, jne, jng, jnge, jnl, jnle, jno, jnp, jns, jnz, jo, jp, jpe, jpo, js, jz, lahf, lcall, lds, ldsl, ldsw, lea, leal, leave, leaw, les, lesl, lesw, lfs, lfsl, lfsw, lgs, lgsl, lgsw, ljmp, lock, lods, lodsb, lodsl, lodsw, loop, loope, loopne, loopnz, loopz, lret, lss, lssl, lssw, mov, movb, movl, movs, movsb, movsbl, movsbw, movsl, movsw, movswl, movw, movzbl, movzbw, movzwl, mul, mulb, mull, mulw, neg, negb, negl, negw, nop, not, notb, notl, notw, or, orb, orl, orw, out, outb, outl, outs, outsb, outsl, outsw, outw, pop, popa, popal, popaw, popf, popfl, popfw, popl, popw, push, pusha, pushal, pushaw, pushf, pushfl, pushfw, pushl, pushw, rcl, rclb, rcll, rclw, rcr, rcrb, rcrl, rcrw, rep, repnz, repz, ret, rol, rolb, roll, rolw, ror, rorb, rorl, rorw, sahf, sal, salb, sall, salw, sar, sarb, sarl, sarw, sbb, sbbb, sbbl, sbbw, scab, scal, scas, scasb, scasl, scasw, scaw, scmp, scmpb, scmpl, scmpw, seta, setae, setb, setbe, setc, sete, setg, setge, setl, setle, setna, setnae, setnb, setnbe, setnc, setne, setng, setnge, setnl, setnle, setno, setnp, setns, setnz, seto, setp, setpe, setpo, sets, setz, shl, shlb, shldl, shldw, shll, shlw, shr, shrb, shrdl, shrdw, shrl, shrw, slod, slodb, slodl, slodw, smov, smovb, smovl, smovw, ssca, sscab, sscal, sscaw, ssto, sstob, sstol, sstow, stc, std, sti, stos, stosb, stosl, stosw, sub, subb, subl, subw, test, testb, testl, testw, wait, xchg, xchgb, xchgl, xchgw, xlat, xor, xorb, xorl, xorw.
+* Protected mode instructions: arpl, clts, lar, lgdt, lidt, lldt, lmsw, lsl, ltr, sgdt, sidt, sldt, smsw, str, verr, verw.
+* Floating-point (FPU, floating point, x87, 8087, 80387) instructions: f2xm1, fabs, fadd, faddl, faddp, fadds, fbld, fbstp, fchs, fclex, fcom, fcoml, fcomp, fcompl, fcompp, fcomps, fcoms, fcos, fdecstp, fdiv, fdivl, fdivp, fdivr, fdivrl, fdivrp, fdivrs, fdivs, ffree, fiadd, fiaddl, ficom, ficoml, ficomp, ficompl, fidiv, fidivl, fidivr, fidivrl, fild, fildl, fildll, fimul, fimull, fincstp, finit, fist, fistl, fistp, fistpl, fistpll, fisub, fisubl, fisubr, fisubrl, fld, fld1, fldcw, fldenv, fldl, fldl2e, fldl2t, fldlg2, fldln2, fldpi, flds, fldt, fldz, fmul, fmull, fmulp, fmuls, fnclex, fninit, fnop, fnsave, fnstcw, fnstenv, fnstsw, fpatan, fprem, fprem1, fptan, frndint, frstor, fsave, fscale, fsetpm, fsin, fsincos, fsqrt, fst, fstcw, fstenv, fstl, fstp, fstpl, fstps, fstpt, fsts, fstsw, fsub, fsubl, fsubp, fsubr, fsubrl, fsubrp, fsubrs, fsubs, ftst, fucom, fucomp, fucompp, fwait, fxam, fxch, fxtract, fyl2x, fyl2xp1.
+* Control registers: %cr0, %cr2, %cr3.
+* Debug registers: %db0, %db1, %db2, %db3, %db6, %db7, %dr0, %dr1, %dr2, %dr3, %dr6, %dr7, %tr6, %tr7.
+* General-purpose registers, 32-bit: %eax, %ecx, %edx, %ebx, %esp, %ebp, %esi, %edi.
+* General-purpose registers, 16-bit: %ax, %cx, %dx, %bx, %sp, %bp, %si, %di.
+* General-purpose registers, 8-bit: %al, %cl, %dl, %bl, %ah, %ch, %dh, %bh.
+* Segment registers: %es, %cs, %ss, %ds, %fs, %gs.
+* Floating-point (FPU, floating point, x87, 8087, 80387) registers: %st, %st(0), %st(1), %st(2), %st(3), %st(4), %st(5), %st(6), %st(7).
+* Assembler directives: .align, .bcd, .bss, .byte, .comm, .data, .def, .dim, .double, .endef, .even, .file, .float, .globl, .ident, .jmpbeg, .jmpend, .lcomm, .line, .llong, .ln, .long, .scl, .section, .set, .size, .string, .tag, .temp, .text, .tv, .type, .val, .value, .version.
+
+The *instab* table values are the same in all 3 assemblers, execept that
+`svr3as-1989-10-03` has different opcode values for `nop`. (This may be just
+an implementation detail.)
+
+The SunOS 4.0.1 i386 assembler has many changes and some addition to the
+*instab* table.
+
 ## Why is the SVR3 assembler significant?
 
 AT&T Unix System V Release 3 (SVR3, released in 1987), was the first popular
