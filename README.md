@@ -1,18 +1,21 @@
-# pts-svr3as-linux: binary port of SVR3 (SysV Release 3) assembler and linker to Linux
+# pts-svr3as-linux: binary port of SVR3 (SysV Release 3) and SunOS 4 assembler and linker to Linux
 
 pts-svr3as-linux contains binary ports of multiple versions of the SVR3
-(SysV Release 3, AT&T Unix System V Release 3) assembler and linker to
-Linux. The resulting ELF-32 program files run on Linux i386 and Linux amd64
-without emulation, and generate SVR3 COFF i386 object and executable files.
-The pts-svr3as-linux repository doesn't contain any (copyrighted) code from
-AT&T: you have to provide the SVR3 i386 executable program files, and
-pts-svr3as-linux converts them to Linux i386 executables.
+(SysV Release 3, AT&T Unix System V Release 3) and SunOS (4.01 and 4.02)
+assembler and linker to Linux. The resulting ELF-32 program files run on
+Linux i386 and Linux amd64 without emulation, and generate SVR3 COFF i386
+object and executable files. The pts-svr3as-linux repository doesn't contain
+any (copyrighted) code from AT&T: you have to provide the SVR3 i386
+executable program files, and pts-svr3as-linux converts them to Linux i386
+executables.
 
 Patches are provided for the following versions:
 
-* 1987-10-28: assembler ported, linker not
-* 1988-05-27: assembler ported, linker not
-* 1989-10-03: assembler ported, linker not
+* SVR3 1987-10-28: assembler ported, linker not ported
+* SVR3 1988-05-27: assembler ported, linker not ported
+* SVR3 1989-10-03: assembler ported, linker not ported
+* SunOS 4.01 1988-11-16: assembler not ported, linker not ported
+* SunOS 4.02 1989-07-17: assembler same as in SunOS 4.01, linker not ported
 
 ## Building it
 
@@ -33,6 +36,8 @@ Step-by-step instructions:
    * `svr3as-1987-10-28.svr3`, `svr3ld-1987-10-28.svr3`
    * `svr3as-1988-05-27.svr3`, `svr3ld-1988-05-27.svr3`
    * `svr3as-1989-10-03.svr3`, `svr3ld-1989-10-03.svr3`
+   * `sunos4as-1988-11-16.svr3`, `sunos4ld-1988-11-16.svr3`
+   * `sunos4ld-1989-07-17.svr3`
 
    The *import.sh* script can help extracting these files from archives,
    disk images etc. For example, you can create the files
@@ -51,13 +56,15 @@ Step-by-step instructions:
    * `svr3as-1987-10-28`
    * `svr3as-1988-05-27`
    * `svr3as-1989-10-03`
+   * `sunos4as-1988-11-16`
 
 ## Using it
 
-You can run the original `*.svr3` program files in emulation with
-[ibcs-us](https://ibcs-us.sourceforge.io/) (many Linux distributions have it
-available as a package). For example, here is how to compile and run the
-hello-world test program *test.s* (part of pts-svr3as-linux):
+You can run the original `svr3*.svr3` (but not `sunos4*.svr3`) program files
+in emulation with [ibcs-us](https://ibcs-us.sourceforge.io/) (many Linux
+distributions have it available as a package). For example, here is how to
+compile and run the hello-world test program *test.s* (part of
+pts-svr3as-linux):
 
 ```
 $ ibcs-us ./svr3as-1988-05-27.svr3 test.s
@@ -90,7 +97,7 @@ systems have *m4* installed.
 
 ## Features
 
-All 3 assembler versions have the following features:
+The SVR3 assemblers (`svr3as-*`) have the following features:
 
 * COFF i386 object file output format.
 * No 486, Pentium etc. instructions or features, only 386.
@@ -110,8 +117,37 @@ The *instab* table values are the same in all 3 assemblers, execept that
 `svr3as-1989-10-03` has different opcode values for `nop`. (This may be just
 an implementation detail.)
 
-The SunOS 4.0.1 i386 assembler has many changes and some addition to the
-*instab* table.
+Additions by the Linux i386 ports:
+
+* The `-dt` command-line flag to force the timestamp in the COFF output file
+  to 0, for reproducible builds.
+
+The SunOS 4.0.1 i386 assembler (`sunos4as-*`) seems to be based on SVR3
+1987-10-28, and it has the following changes:
+
+* No additions or removals in instructions or registers.
+* New assembler directives:  .noopt, .optim, .stabd, .stabn, .stabs.
+* Support for preprocessing with m4 (enable it with the `-m` command-line
+  flag, configure it with `-Y`) has been removed.
+* Added the `-i386` command-line flag, ignored.
+* Added the `-k' flag for generation of position-independent code.
+* Changed the meaning of the `-R` flag: in SVR3 it causes the input .s file
+  to be deleted (removed) on success, in SunOS it makes the .data section
+  read-only and merges it into .text.
+* Adds the *localopt* variable (used in *loopgen()* in addition to the *opt*
+  variable). This affects code generation somehow.
+* Uses a fixed symbol table (of 21011 elements), it isn't able to grow.
+  (This is a stepback.)
+* The program is dynamically linked against SunOS libc.so (rather than
+  statically linked). It's still statically linked against SuonOS libm.a.
+* SunOS libm.a is different from SVR4 libm.a implementation, probably
+  because SunOS 4 is based on 4.3BSD.
+* Implementation detail: the 2nd boll argument of *lookup()* is inverted.
+* There is no *hash(...)* function, it's inlined to *lookup()*.
+* The entire tables (*symtab* and *hashtab*) are preallocated, it's not many
+  smaller dynamic allocations anymore.
+* It has version info *SunOS 4.0/RoadRunner BETA1 -- 12/15/87*.
+* Some more changes.
 
 ## Why is the SVR3 assembler significant?
 
@@ -137,6 +173,8 @@ Assemblers using the AT&T i386 syntax:
 
 * the SVR3 assembler (earliest remaining file date 1987-10-28)
 * the SVR4 assembler (earliest remaining file date 1990-04-19)
+* thue SunOS 4.01 assembler (earliest remaining file date 1988-11-16),
+  based on the SVR3 assembler from 1987
 * GNU Assembler (released for i386 in about 1990), now part of GNU Binutils,
   still in active development in 2024
 * the assembler in Sun Solaris is based on the SVR4 assembler, later
