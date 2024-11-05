@@ -292,6 +292,8 @@ section .xtext
     incbin_until 0x3f0484
     jmp strict near better_getargs
     after_better_getargs:
+    incbin_until 0x3f05c4
+    push strict dword 0  ; Push NULL instead of "/tmp", for tempnam(3).
   incbin_until 0x3f060c
     run_m4:  ; Called when the `-m' command-line flag is specified.
     ; We don't support running m4 on Linux, because the Linux system
@@ -591,7 +593,8 @@ section .xdata
   r 0x40b662, 0x40b696
   r 0x40b8ae, 0x40b8fe
   incbin_until 0x40b988
-    aUsrTmp: fill_until 0x40b994  ; Fill out unused "/usr/tmp" string.
+    P_tmpdir: db '/tmp', 0
+    fill_until 0x40b994  ; Fill out unused "/usr/tmp" string.
   r 0x40ba2a, 0x40bb8a
   incbin_until 0x40bdb8
     unused_setchrclass_data:
