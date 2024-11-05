@@ -67,6 +67,7 @@ compile and run the hello-world test program *test.s* (part of
 pts-svr3as-linux):
 
 ```
+$ chmod +x ./svr3as-1988-05-27.svr3 ./svr3ld-1988-05-27.svr3
 $ ibcs-us ./svr3as-1988-05-27.svr3 test.s
 $ ibcs-us ./svr3ld-1988-05-27.svr3 -s -e entry -o test test.o
 $ ibcs-us ./test
@@ -77,6 +78,7 @@ Alternatively, you can run the assembler natively (no ibcs-us emulation
 needed) after building pts-svr3as-linux:
 
 ```
+$ chmod +x ./svr3as-1988-05-27.svr3 ./svr3ld-1988-05-27.svr3
 $ ./svr3as-1988-05-27 test.s
 $ ibcs-us ./svr3ld-1988-05-27.svr3 -s -e entry -o test test.o
 $ ibcs-us ./test
