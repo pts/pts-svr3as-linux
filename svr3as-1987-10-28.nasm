@@ -59,11 +59,12 @@
 ;
 ;
 
-main requ 0x3f0450
 _cleanup requ 0x3ff484
 environ requ 0x400fa8
 errno requ 0x40c21c
 dlflag requ 0x40abc0
+filenames_0 requ 0x40c23c
+cfile requ 0x40a89c
 
 ; SYSV SVR3 i386 syscall numbers.
 ;
@@ -227,6 +228,12 @@ section .xtext
     .d2:
     jmp strict short simple_syscall3.edx_do
 
+    better_getargs:
+    call getargs
+    cmp [filenames_0], strict byte 0
+    jne strict near after_better_getargs
+    jmp strict near fatal_usage
+
     %if 0  ; These functions are only needed for debugging.
     emu_fatal_unsupported_syscall:
     ; Input: syscall number in AL.
@@ -262,7 +269,8 @@ section .xtext
     ret
     %endif  ; Not needed.
 
-    fill_until 0x3f011c
+  fill_until 0x3f011c
+    getargs:
   incbin_until 0x3f01a4
     ; This is original functionality: checks for 'l', sets dlflag to 1, then jumps to flagcont (0x3f02e6).
     getargs__dflag:
@@ -277,6 +285,13 @@ section .xtext
     and dword [coff_filehdr_f_timdat], strict byte 0
     jmp strict short jmp_to_flagcont
     fill_until 0x3f01c0
+  incbin_until 0x3f0450
+    main:
+    incbin_until 0x3f045b
+    fatal_usage:
+    incbin_until 0x3f0484
+    jmp strict near better_getargs
+    after_better_getargs:
   incbin_until 0x3f060c
     run_m4:  ; Called when the `-m' command-line flag is specified.
     ; We don't support running m4 on Linux, because the Linux system
@@ -316,6 +331,21 @@ section .xtext
     ; wouldn't have a data race in the signal handler.
     li3_syscall  ; Doesn't return.
     fill_until 0x3f78ec
+  incbin_until 0x3f7990
+    errmsg:
+    incbin_until 0x3f799e
+    mov eax, cfile
+    mov ecx, [filenames_0]
+    test ecx, ecx
+    jz strict short .have_filename_in_eax
+    cmp byte [eax], 0
+    jne strict short .have_filename_in_eax
+    xchg eax, ecx  ; EAX := ECX; ECX := junk.
+    .have_filename_in_eax:
+    push eax
+    jmp strict short .push
+    fill_until 0x3f79be, nop  ; About 10 bytes, until the push aAssemblerS.
+    .push:
   ru 0x3f9d54
   incbin_until 0x3f9e1c
     ; The original call to `time' was here, when populting the coff_filehdr.
