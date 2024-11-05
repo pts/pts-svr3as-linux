@@ -70,10 +70,8 @@ pts-svr3as-linux):
 $ ibcs-us ./svr3as-1988-05-27.svr3 test.s
 $ ibcs-us ./svr3ld-1988-05-27.svr3 -s -e entry -o test test.o
 $ ibcs-us ./test
-<3>mm->brk does not lie within mmapHello, world!
+Hello, world!
 ```
-
-TODO(pts): Fix the *<3>mm->brk does not lie within mmap* error.
 
 Alternatively, you can run the assembler natively (no ibcs-us emulation
 needed) after building pts-svr3as-linux:
@@ -82,7 +80,7 @@ needed) after building pts-svr3as-linux:
 $ ./svr3as-1988-05-27 test.s
 $ ibcs-us ./svr3ld-1988-05-27.svr3 -s -e entry -o test test.o
 $ ibcs-us ./test
-<3>mm->brk does not lie within mmapHello, world!
+Hello, world!
 ```
 
 Please note that the assembler creates and then removes up to 15 temporary
