@@ -3,7 +3,7 @@
 ; by pts@fazekas.hu at Tue Oct 22 21:02:06 CEST 2024
 ;
 ; Compile with: nasm -w+orphan-labels -f bin -O0 -o svr3as-1988-05-27 svr3as-1988-05-27.nasm && chmod +x svr3as-1988-05-27
-; Run on Linux (creating test.o of COFF format): ./svr3as-1988-05-27.nasm: test.s && cmp -l test.o.good test.o
+; Run on Linux (creating test.o of COFF format): ./svr3as-1988-05-27 -dt test.s && cmp -l test.o.good test.o
 ;
 ; This program runs natively on Linux i386 and Linux amd64 systems, even
 ; those which have `sysctl -w vm.mmap_min_addr=65536' (like many Linux
