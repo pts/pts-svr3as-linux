@@ -24,7 +24,7 @@ ec=0
 for f in "$@"; do  # Import each specified file.
   test "$f" != -- || continue
   if ! test -f "$f"; then echo "error: missing input file: $f" >&2; ec=2; continue; fi
-  do_del_tmp=; f2=; hash2=
+  do_del_tmp=; f2=; hash2=; f3=; hash3=
   echo "info: importing obtained file: $f" >&2
   hash="$(sha256sum <"$f")";
   if test -z "$hash"; then echo "error: error computing sha256 for file: %f" >&2; ec=2; continue; fi
@@ -37,9 +37,7 @@ for f in "$@"; do  # Import each specified file.
     case "$f" in /*) ;; *) f="$PWD/$f" ;; esac
     case "$mydir" in /*) mydira="$mydir" ;; *) mydira="$PWD/$mydir" ;; esac
     set -ex
-    rm -rf import.tmp
-    do_del_tmp=1
-    mkdir import.tmp
+    rm -rf import.tmp; do_del_tmp=1; mkdir import.tmp
     (cd import.tmp && "$mydira/tools/tiny7zx" x "$f") || exit "$?"
     # This is hard to port to Win32,  because of the non-ASCII character (¼) in the pathname.
     f="import.tmp/Interactive UNIX386 2.2 rel3.2 (5¼)/disk23.img"; hash="$(sha256sum <"$f")"; test "$hash"
@@ -101,9 +99,7 @@ for f in "$@"; do  # Import each specified file.
     # Download from http://bitsavers.org/bits/ATT/SYSV_386/
     case "$f" in /*) ff="$f" ;; *) f="./$f"; ff="../$f" ;; esac
     set -ex
-    rm -f import.tmp/sds1.imd
-    do_del_tmp=1
-    test -d import.tmp || mkdir import.tmp
+    rm -rf import.tmp; do_del_tmp=1; mkdir import.tmp
     unzip -p "$f" SYSV_386_3.2_SDS_4.1.5/SDS1.IMD >import.tmp/sds1.imd
     f=import.tmp/sds1.imd; hash="$(sha256sum <"$f")"; test "$hash"
     test "$hash" = "69c306d2fe96b2f686aea044e7a1ea6df65e52f4cdc3d59f90f3e82c78f19d8e  -"
@@ -177,9 +173,7 @@ for f in "$@"; do  # Import each specified file.
     # Download from http://bitsavers.org/bits/ATT/SYSV_386/
     case "$f" in /*) ff="$f" ;; *) f="./$f"; ff="../$f" ;; esac
     set -ex
-    rm -f import.tmp/41base2.imd
-    do_del_tmp=1
-    test -d import.tmp || mkdir import.tmp
+    rm -rf import.tmp; do_del_tmp=1; mkdir import.tmp
     unzip -p "$f" SYSV_386_3.1_1.2mb_disk1_missing/41BASE2.IMD >import.tmp/41base2.imd
     f=import.tmp/41base2.imd; hash="$(sha256sum <"$f")"; test "$hash"
     test "$hash" = "6a7cdbc4ed8d061c95bb879d92d335a4191b26a2d859f5872bfb34bc992322a7  -"
@@ -248,6 +242,139 @@ for f in "$@"; do  # Import each specified file.
     f=; hash=
   fi
 
+  if test "$hash" = "7bff29761d3e532ba99659868ed7c0a1494851d8a16a6e73b9da345742c0069f  -"; then  # sun386i.tar.bz2
+    # Download https://fsck.technology/software/Sun%20Microsystems/Solaris%20Applications/Sun%20386i%20Software/sun386i.tar.bz2
+    case "$f" in /*) ff="$f" ;; *) f="./$f"; ff="../$f" ;; esac
+    set -ex
+    rm -rf import.tmp; do_del_tmp=1; mkdir import.tmp
+    (cd import.tmp && tar xjvf "$ff" sun386i/sunos4.01/dev-01.gz sun386i/sunos4.01/app-06.gz sun386i/sunos4.01/upg-02.gz) || exit "$?"
+    gunzip -ck import.tmp/sun386i/sunos4.01/app-06.gz >import.tmp/sun386i/sunos4.01/app-06.img
+    gunzip -ck import.tmp/sun386i/sunos4.01/dev-01.gz >import.tmp/sun386i/sunos4.01/dev-01.img
+    gunzip -ck import.tmp/sun386i/sunos4.01/upg-02.gz >import.tmp/sun386i/sunos4.01/upg-02.img
+    rm -f import.tmp/sun386i/sunos4.01/*.gz
+    f=import.tmp/sun386i/sunos4.01/dev-01.img; hash="$(sha256sum <"$f")"; test "$hash"
+    test "$hash" = "6b1040cad027742c5f36b5c2ea9c5e52ebc92ab3848943cf907b94bfd4cd6dc0  -"
+    f2=import.tmp/sun386i/sunos4.01/app-06.img; hash2="$(sha256sum <"$f2")"; test "$hash2"
+    test "$hash2" = "7570284d178acab04adda2552319176178cddbf623e37c3d57d44eb2df5174b8  -"
+    f3=import.tmp/sun386i/sunos4.01/upg-02.img; hash3="$(sha256sum <"$f3")"; test "$hash3"
+    test "$hash3" = "a55fadc971d1798432c027ca7526dca15162bff52c527d8e771df11330df4d66  -"
+    set +ex
+    # Fall through.
+  fi
+  if test "$hash" = "6b1040cad027742c5f36b5c2ea9c5e52ebc92ab3848943cf907b94bfd4cd6dc0  -"; then  # SunOS 4.01 dev-01.img containing sunos4as-1988-11-16.svr3.Z
+    set -ex
+    do_del_tmp=1
+    test -d import.tmp || mkdir import.tmp
+    case "$f" in /*) ff="$f" ;; *) f="./$f"; ff="../$f" ;; esac
+    rm -f import.tmp/f.bin import.tmp/f.nasm import.tmp/*.svr3
+    ln -s "$ff" import.tmp/f.bin
+    echo 'incbin "import.tmp/f.bin", 0x800, 0xeac1' >import.tmp/f.nasm
+    nasm -O0 -f bin -o import.tmp/sunos4as-1988-11-16.svr3.Z import.tmp/f.nasm
+    f=import.tmp/sunos4as-1988-11-16.svr3.Z; hash="$(sha256sum <"$f")"; test "$hash"
+    test "$hash" = "b4fce95b95442055573d24a8aecfacb482f15743b356c915cbe5ae259535aef9  -"
+    set +ex
+    # Fall through.
+  fi
+  if test "$hash" = "b4fce95b95442055573d24a8aecfacb482f15743b356c915cbe5ae259535aef9  -"; then  # sunos4as-1988-11-16.svr3.Z
+    set -ex
+    do_del_tmp=1
+    test -d import.tmp || mkdir import.tmp
+    uncompress -c <"$f" >import.tmp/sunos4as-1988-11-16.svr3
+    f=import.tmp/sunos4as-1988-11-16.svr3; hash="$(sha256sum <"$f")"; test "$hash"
+    test "$hash" = "1430efc421121826f6e04cb6f21f87007f1786961c1ae8c4d5e05b6c5dbe061a  -"
+    set +ex
+    # Fall through.
+  fi
+  if test "$hash" = "1430efc421121826f6e04cb6f21f87007f1786961c1ae8c4d5e05b6c5dbe061a  -"; then  # sunos4as-1988-11-16.svr3
+    of=sunos4as-1988-11-16.svr3
+    if cmp -- "$f" "$of" 2>/dev/null; then
+      echo "info: already imported: $of" >&2
+    else
+      set -ex
+      rm -f "$of"; cp -a -- "$f" "$of"
+      TZ=GMT touch -d '1988-11-16 12:00:00' "$of"
+      set +ex
+      echo "info: import OK: $of" >&2
+    fi
+    f="$f2"; hash="$hash2"; f2=; hash2=
+    # Fall through.
+  fi
+  if test "$hash" = "7570284d178acab04adda2552319176178cddbf623e37c3d57d44eb2df5174b8  -"; then  # SunOS 4.01 app-06.img containing sunos4ld-1988-11-16.svr3.Z
+    set -ex
+    do_del_tmp=1
+    test -d import.tmp || mkdir import.tmp
+    case "$f" in /*) ff="$f" ;; *) f="./$f"; ff="../$f" ;; esac
+    rm -f import.tmp/f.bin import.tmp/f.nasm import.tmp/*.svr3
+    ln -s "$ff" import.tmp/f.bin
+    echo 'incbin "import.tmp/f.bin", 0x7b400, 0xaeba' >import.tmp/f.nasm
+    nasm -O0 -f bin -o import.tmp/sunos4ld-1988-11-16.svr3.Z import.tmp/f.nasm
+    f=import.tmp/sunos4ld-1988-11-16.svr3.Z; hash="$(sha256sum <"$f")"; test "$hash"
+    test "$hash" = "34452d2e26e4a51ab030186a713ff0cead6af8779ab5d06a05cbd9ef8012ee55  -"
+    set +ex
+    # Fall through.
+  fi
+  if test "$hash" = "34452d2e26e4a51ab030186a713ff0cead6af8779ab5d06a05cbd9ef8012ee55  -"; then  # sunos4ld-1988-11-16.svr3.Z
+    set -ex
+    do_del_tmp=1
+    test -d import.tmp || mkdir import.tmp
+    uncompress -c <"$f" >import.tmp/sunos4ld-1988-11-16.svr3
+    f=import.tmp/sunos4ld-1988-11-16.svr3; hash="$(sha256sum <"$f")"; test "$hash"
+    test "$hash" = "6bf2312ca6b101f98ed333d4f042c2b1c075101fda741bec8286c4a56d089a34  -"
+    set +ex
+    # Fall through.
+  fi
+  if test "$hash" = "6bf2312ca6b101f98ed333d4f042c2b1c075101fda741bec8286c4a56d089a34  -"; then  # sunos4ld-1988-11-16.svr3
+    of=sunos4ld-1988-11-16.svr3
+    if cmp -- "$f" "$of" 2>/dev/null; then
+      echo "info: already imported: $of" >&2
+    else
+      set -ex
+      rm -f "$of"; cp -a -- "$f" "$of"
+      TZ=GMT touch -d '1988-11-16 12:00:00' "$of"
+      set +ex
+      echo "info: import OK: $of" >&2
+    fi
+    f="$f3"; hash="$hash3"; f3=; hash3=
+    # Fall through.
+  fi
+  if test "$hash" = "a55fadc971d1798432c027ca7526dca15162bff52c527d8e771df11330df4d66  -"; then  # SunOS 4.01 upg-02.img containing sunos4ld-1989-07-10.svr3.Z
+    set -ex
+    do_del_tmp=1
+    test -d import.tmp || mkdir import.tmp
+    case "$f" in /*) ff="$f" ;; *) f="./$f"; ff="../$f" ;; esac
+    rm -f import.tmp/f.bin import.tmp/f.nasm import.tmp/*.svr3
+    ln -s "$ff" import.tmp/f.bin
+    echo 'incbin "import.tmp/f.bin", 0xbd400, 0xaf07' >import.tmp/f.nasm
+    nasm -O0 -f bin -o import.tmp/sunos4ld-1989-07-10.svr3.Z import.tmp/f.nasm
+    f=import.tmp/sunos4ld-1989-07-10.svr3.Z; hash="$(sha256sum <"$f")"; test "$hash"
+    test "$hash" = "08a63cf38416d917feeffd97bdf3681e83e1e599d82d6f78f01ffaefcb8df6bd  -"
+    set +ex
+    # Fall through.
+  fi
+  if test "$hash" = "08a63cf38416d917feeffd97bdf3681e83e1e599d82d6f78f01ffaefcb8df6bd  -"; then  # sunos4ld-1989-07-10.svr3.Z
+    set -ex
+    do_del_tmp=1
+    test -d import.tmp || mkdir import.tmp
+    uncompress -c <"$f" >import.tmp/sunos4ld-1989-07-10.svr3
+    f=import.tmp/sunos4ld-1989-07-10.svr3; hash="$(sha256sum <"$f")"; test "$hash"
+    test "$hash" = "11b5e2e57d8ee99b05b68beb01cd784478b407216fde6e7faf23abaa97d43a97  -"
+    set +ex
+    # Fall through.
+  fi
+  if test "$hash" = "11b5e2e57d8ee99b05b68beb01cd784478b407216fde6e7faf23abaa97d43a97  -"; then  # sunos4ld-1989-07-10.svr3
+    of=sunos4ld-1989-07-10.svr3
+    if cmp -- "$f" "$of" 2>/dev/null; then
+      echo "info: already imported: $of" >&2
+    else
+      set -ex
+      rm -f "$of"; cp -a -- "$f" "$of"
+      TZ=GMT touch -d '1989-07-10 12:00:00' "$of"
+      set +ex
+      echo "info: import OK: $of" >&2
+    fi
+    f=; hash=
+  fi
+
   if test "$do_del_tmp"; then rm -rf import.tmp || exit "$?"; fi
   if test "$f"; then
     echo "error: unrecogined file with sha256 ${hash%  -}: $f" >&2; ec=2
@@ -264,6 +391,9 @@ for fh in \
     "svr3ld-1987-10-28.svr3 dbd3392779e515dc1ccbec86a64e28ac5af280290b6115ecc57aee23d78b7d1d" \
     "svr3ld-1988-05-27.svr3 9205364de3df93659ede3ac8d2dabe76151c860090af9b5a71f9ff0edef64d16" \
     "svr3ld-1989-10-03.svr3 fd019d3e9b3fd5608c3d3bab28ac45d5a3d9d76751ffdea07bc182227d619e14" \
+    "sunos4as-1988-11-16.svr3 1430efc421121826f6e04cb6f21f87007f1786961c1ae8c4d5e05b6c5dbe061a" \
+    "sunos4ld-1988-11-16.svr3 6bf2312ca6b101f98ed333d4f042c2b1c075101fda741bec8286c4a56d089a34" \
+    "sunos4ld-1989-07-10.svr3 11b5e2e57d8ee99b05b68beb01cd784478b407216fde6e7faf23abaa97d43a97" \
     ; do
   set -- $fh
   f="$1"; hashe="$2  -"
