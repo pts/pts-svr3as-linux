@@ -261,6 +261,23 @@ for f in "$@"; do  # Import each specified file.
     set +ex
     # Fall through.
   fi
+  if test "$hash" = "ffd4107fb5e7eef3985a3c5074114a46927a683df490d4f8f1fd70dd22d547d1  -"; then  # SunOS 4.01 (3.5).7z
+    # Download from https://winworldpc.com/download/40e2809a-c3ac-4d18-c39a-11c3a4e284a2
+    # Download found on https://winworldpc.com/product/sunos/4x
+    case "$f" in /*) ff="$f" ;; *) f="./$f"; ff="../$f" ;; esac
+    case "$mydir" in /*) mydira="$mydir" ;; *) mydira="$PWD/$mydir" ;; esac
+    set -ex
+    rm -rf import.tmp; do_del_tmp=1; mkdir import.tmp
+    (cd import.tmp && "$mydira/tools/tiny7zx" x "$ff") || exit "$?"
+    f="import.tmp/SunOS 4.01 (3.5)/dev-01.img"; hash="$(sha256sum <"$f")"; test "$hash"
+    test "$hash" = "6b1040cad027742c5f36b5c2ea9c5e52ebc92ab3848943cf907b94bfd4cd6dc0  -"
+    f2="import.tmp/SunOS 4.01 (3.5)/app-06-core.img"; hash2="$(sha256sum <"$f2")"; test "$hash2"
+    test "$hash2" = "7570284d178acab04adda2552319176178cddbf623e37c3d57d44eb2df5174b8  -"
+    f3="import.tmp/SunOS 4.01 (3.5)/upg-02.img"; hash3="$(sha256sum <"$f3")"; test "$hash3"
+    test "$hash3" = "a55fadc971d1798432c027ca7526dca15162bff52c527d8e771df11330df4d66  -"
+    set +ex
+    # Fall through.
+  fi
   if test "$hash" = "6b1040cad027742c5f36b5c2ea9c5e52ebc92ab3848943cf907b94bfd4cd6dc0  -"; then  # SunOS 4.01 dev-01.img containing sunos4as-1988-11-16.svr3.Z
     set -ex
     do_del_tmp=1
