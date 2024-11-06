@@ -357,7 +357,7 @@ section .xtext
     mov ebx, [coff_filehdr_f_timdat]
     li3_syscall
     pop ebx  ; Restore.
-    and dword [coff_filehdr_f_opthr_and_f_flags], strict byte 0
+    and dword [coff_filehdr_f_opthdr_and_f_flags], strict byte 0
     fill_until 0x3e9ef8
   ru 0x3ea55c
   incbin_until 0x3ed1c0
@@ -376,11 +376,10 @@ section .xtext
     ;mov eax, SYS_FORK
     ;call emu_fatal_unsupported_syscall
     fill_until 0x3ed1f0
-  incbin_until 0x3ed2bf
-    loc_D2BF:
-    jmp strict short .end
-    fill_until 0x3ed2dc  ; Skill call to access("/usr/tmp", ...). It looks like it's not done anyway.
-    .end:
+  incbin_until 0x3ed2dc
+    jmp strict short after_tmp  ; Skip access(tempnam_hardcoded_tmp, X_OK|W_OK), we've done it for P_tmpdir already, which is the same ("/tmp").
+    fill_until 0x3ed2f9, nop  ; Gap.
+    after_tmp:
   incbin_until 0x3ed3fc
     ; We don't implement time(...), because we've removed the only caller.
     time:
@@ -589,9 +588,11 @@ section .xdata
   r 0x409d46, 0x409d5a
   incbin_until 0x40a2c8-SUB4
     coff_filehdr_f_timdat: dd coff_filehdr_f_timdat  ; NULL here means write 0 as the timestamp, for reproducible builds.
-    coff_filehdr_f_opthr_and_f_flags equ coff_filehdr_f_timdat+3*4
+    coff_filehdr_f_opthdr_and_f_flags equ coff_filehdr_f_timdat+3*4
   r 0x40a80e, 0x40a842
   r 0x40aa76, 0x40aac6
+  incbin_until 0x40ab4f-SUB4
+    fill_until 0x40ab58-SUB4  ; Gap previously used by tempnam_hardcoded_tmp.
   incbin_until 0x40ab60-SUB4
     P_tmpdir: db '/tmp', 0
     fill_until 0x40ab6c-SUB4  ; Fill out unused "/usr/tmp" string.
