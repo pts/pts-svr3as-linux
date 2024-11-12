@@ -123,7 +123,7 @@ Additions by the Linux i386 ports:
   to 0, for reproducible builds.
 
 The SunOS 4.0.1 i386 assembler (`sunos4as-*`) seems to be based on SVR3
-1987-10-28, and it has the following changes:
+1987-10-28 or later (up to 1987-12-15), and it has the following changes:
 
 * No additions or removals in instructions or registers.
 * New assembler directives:  .noopt, .optim, .stabd, .stabn, .stabs.
@@ -147,6 +147,13 @@ The SunOS 4.0.1 i386 assembler (`sunos4as-*`) seems to be based on SVR3
 * The entire tables (*symtab* and *hashtab*) are preallocated, it's not many
   smaller dynamic allocations anymore.
 * It has version info *SunOS 4.0/RoadRunner BETA1 -- 12/15/87*.
+* The build process: the source code of the SVR3 assembler has been used as
+  a base, changed (see some of the changes above), compiled with a different
+  C compiler, linked statically against SunOS 4.0 libm (based on 4.3BSD, not
+  SVR3), linked dynamically against SunOS 4.0 libc (based on 4.3BSD, not
+  SVR3).
+* Oddly enough, SunOS 4.01 (and 4.3BSD) libc *stdio.h* defines *P_tmpdir* to
+  `"/usr/tmp"`, but the assembler uses `"/tmp"`.
 * Some more changes.
 
 ## Why is the SVR3 assembler significant?
