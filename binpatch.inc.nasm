@@ -690,6 +690,8 @@ extern emu_seh0_frame
   %endif
 %endm
 
+%define p.rw.vsize.in.phdr1 p.rw.vsize  ; The user can override it.
+
 %macro end 0  ; Mandatory at the end of the .nasm source file if any of the .x* sections have been defined.
   MISSING_END_AT_EOF equ 0  ; Prevent NASM error.
   %ifdef __define_x_sections  ; At least one of the .x* sections have been defined.
@@ -751,7 +753,7 @@ extern emu_seh0_frame
       __ensure_section_ncomment
         %ifdef s.xdata.used  ; !! TODO(pts): Also for .idata etc. Which of those is writable?
           ; TODO(pts): Simulate `ld -N' by merging the two Phdrs.
-          Elf32_Phdr1: dd 1, p.rw.fout, p.rw.vstart, p.rw.vstart, p.rw.fsize, p.rw.vsize, 6, 0x1000
+          Elf32_Phdr1: dd 1, p.rw.fout, p.rw.vstart, p.rw.vstart, p.rw.fsize, p.rw.vsize.in.phdr1, 6, 0x1000
         %endif
         Elf32_Phdr_end:
       section .bss
@@ -771,8 +773,12 @@ extern emu_seh0_frame
       p.re.fsize equ s.xtext.fout+s.xtext.fsize
       %ifdef s.xdata.used
         ; TODO(pts): When autocomputing s.xdata.vstart from the autocomputed s.xtext.fsize, also consider align=4 default.
-        %if ((s.xtext.vstart+s.xtext.fsize)&~0xfff) >= (s.xdata.vstart&~0xfff)
-          %error PAGE_OVERLAP_IN_XTEXT_AND_XDATA  ; Solution: just add 0x1000 to s.xdata.vstart in define.xdata.
+        %if s.xtext.vstart<=s.xdata.vstart && ((s.xtext.vstart+s.xtext.fsize)&~0xfff) >= (s.xdata.vstart&~0xfff)
+          %error PAGE_OVERLAP_IN_XTEXT_AND_XDATA  ; Solution: just add a multiple of 0x1000 to s.xdata.vstart in define.xdata.
+          __had_error
+        %endif
+        %if s.xtext.vstart>s.xdata.vstart && ((s.xdata.vstart+s.xdata.vsize)&~0xfff) >= (s.xtext.vstart&~0xfff)
+          %error PAGE_OVERLAP_IN_XDATA_AND_XTEXT  ; Solution: just add a multiple of 0x1000 to s.text.vstart in define.xdata.
           __had_error
         %endif
         ; Simplified below:
