@@ -103,6 +103,7 @@ PROT:  ; Symbolic constants for Linux mmap(2).
 
 MAP:  ; Symbolic constants for Linux mmap(2).
 .PRIVATE: equ 2
+.FIXED: equ 0x10
 .ANONYMOUS: equ 0x20
 
 ; Linux i386 open(2) flags constants.
@@ -191,7 +192,7 @@ section .xtext
 		; void *sys_mmap2(void *addr, size_t length, int prot, int flags, int fd, unsigned long offset_shr_12);  /* We don't use this. */
 		push strict byte 0  ; offset.
 		push strict byte -1 ; fd.
-		push strict byte MAP.PRIVATE|MAP.ANONYMOUS  ; flags.
+		push strict byte MAP.PRIVATE|MAP.ANONYMOUS|MAP.FIXED  ; flags.
 		push strict byte PROT.READ|PROT.WRITE  ; prot.
 		push strict dword ((s.xdata.vstart+s.xdata.vsize+0xfff)&~0xfff)-((s.xdata.vstart+s.xdata.fsize+0xfff)&~0xfff)  ; length.
 		push strict ((s.xdata.vstart+s.xdata.fsize+0xfff)&~0xfff)  ; addr.
