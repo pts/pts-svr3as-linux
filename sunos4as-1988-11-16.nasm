@@ -13,11 +13,11 @@
 ; This program creates (and removes) up to 15 temporary files (in `$TMPDIR'
 ; or `/tmp') during normal operation.
 ;
+; !! Why segmentation fault in full run (but not help) in qemu-i386?
 ; !! Check .xtext and .xdata padding (&x0xfff) in the final program, maybe we can save 0xfff bytes.
 ; !! Make unknown flags an error rather than a warning. Fix it in all 3 .nasm sources.
 ; !! "trouble writing; probably out of temp-file space" appears multiple times; deduplicate all strings.
 ; !! Add opt.xdata.first to match section order in sunos4as-1988-11-16.elf.
-; !! Replace lclatof(...) (called by atob16f(...) only, called by yylex(...)) with mini_strtod(3), maybe in-place? Then we don't need isdigit(...).
 ; !! Fix infinite loop when the input .s file doesn't end with a newline. Is it a libc bug or are the two others also buggy?
 ; !! Fix error line numbers. SVR3 assembler is also broken.
 ;
@@ -72,7 +72,7 @@ unused_d2 requ 0x17820  ; In .xdata. Previously yynerrs. Gap.
   %define xfill_until fill_until
 %endif
 
-; Linux i386 syscall numbers.
+; Linux >=1.0 i386 syscall numbers.
 SYS_exit equ 1
 SYS_read equ 3
 SYS_write equ 4
@@ -90,8 +90,9 @@ SYS_signal equ 48  ; The Linux syscall 48 matches the SYSV behavior (not the BSD
 SYS_ioctl equ 54
 SYS_sigaction equ 67
 SYS_gettimeofday equ 78
+SYS_mmap equ 90
 SYS_stat equ 106
-SYS_mmap2 equ 192
+;SYS_mmap2 equ 192  ; Linux >=2.4.
 
 ; Linux i386 errno errnor numbers.
 EEXIST equ 17
@@ -185,22 +186,25 @@ section .xtext
     global _start
     _start:  ; Linux i386 program entry point. Also libc trampoline.
 		; Allocate .bss manually, Linux 5.4.0 doesn't respect the memsz above. !! Add error to binpatch.inc.nasm.
-		mov ebx, ((s.xdata.vstart+s.xdata.fsize+0xfff)&~0xfff)  ; Argument addr.
-		push byte PROT.READ|PROT.WRITE  ; Argument prot.
-		pop edx
-		push byte MAP.PRIVATE|MAP.ANONYMOUS  ; Argument flags.
-		pop esi
-		or edi, strict byte -1  ; Argument fd.
-		xor ebp, ebp  ; Argument offset>>12.
-		mov ecx, ((s.xdata.vstart+s.xdata.vsize+0xfff)&~0xfff)-((s.xdata.vstart+s.xdata.fsize+0xfff)&~0xfff)  ; Argument length.
-		xor eax, eax
-		mov al, SYS_mmap2  ; !! Needs Linux 2.4. Check all other syscalls.
+		; void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset);  /* libc interface, we don't use this, because we don't have a libc. */
+		; void *sys_mmap(unsigned long *buffer);  /* We use this, for Linux 1.0 compatibility. */
+		; void *sys_mmap2(void *addr, size_t length, int prot, int flags, int fd, unsigned long offset_shr_12);  /* We don't use this. */
+		push strict byte 0  ; offset.
+		push strict byte -1 ; fd.
+		push strict byte MAP.PRIVATE|MAP.ANONYMOUS  ; flags.
+		push strict byte PROT.READ|PROT.WRITE  ; prot.
+		push strict dword ((s.xdata.vstart+s.xdata.vsize+0xfff)&~0xfff)-((s.xdata.vstart+s.xdata.fsize+0xfff)&~0xfff)  ; length.
+		push strict ((s.xdata.vstart+s.xdata.fsize+0xfff)&~0xfff)  ; addr.
+		mov ebx, esp  ; buffer, to be passed to sys_mmap(...).
+		push strict byte SYS_mmap
+		pop eax
 		li3_syscall
 		test eax, eax
 		jnz .ok
 		push strict byte -1
 		call mini__exit  ; Doesn't return.
-      .ok:	pop eax  ; argc.
+      .ok:	add esp, strict byte 6*4  ; Clean up `long buffer[6]' from the stack.
+		pop eax  ; argc.
 		mov edx, esp  ; argv.
 		lea ecx, [edx+eax*4+4]  ; envp.
 		mov [mini_environ], ecx
@@ -825,7 +829,7 @@ section .xtext
       assert_addr (%1)+15
     %endm
 
-  xfill_until 0x0d14d4  ; There is a gap of 10 bytes in front of this. Original code starts here.
+  xfill_until 0x0d14d4  ; There is a gap of 9 bytes in front of this. Original code (first incbin_until) starts here.
     getargs:
     incbin_until 0x0d154b
     call mini_strcmp
