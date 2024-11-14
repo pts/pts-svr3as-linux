@@ -414,7 +414,7 @@ section .xtext
     fill_until 0x3ed794
   incbin_until 0x3eeca4
     unused_setchrclass:
-    fill_until 0x3eed6c
+    fill_until 0x3eed6c  ; Gap.
   incbin_until 0x3efa94-SUB4
     close:
     push strict byte SYS_CLOSE
