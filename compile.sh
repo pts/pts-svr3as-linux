@@ -68,7 +68,7 @@ for prog in svr3as-1987-10-28 svr3as-1988-05-27 svr3as-1989-10-03; do
   ./"$prog" -dt -dg -dv test.s
   cmp -l test.o.good test.o
 done
-for prog in sunos4as-1988-11-16; do
+for prog in sunos4as-1988-11-16 sunos4as-1988-11-16.elf; do
   test -f "$prog" || continue
   rm -f test.o
   # The -dg flag prevents the -lg symbol from being generated.
