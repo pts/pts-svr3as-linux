@@ -1131,7 +1131,7 @@ section .xtext
   incbin_until 0x0d83d2
     call mini_exit
   incbin_until 0x0d83da
-    deltemps:  ; !! Test call and successful temporary file deletion from signal_handler.
+    deltemps:  ; Tested, this also works from the signal handler (e.g. for SIGINT).
   incbin_until 0x0d83ee
     call mini_unlink
   incbin_until 0x0d848e
