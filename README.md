@@ -14,7 +14,7 @@ Patches are provided for the following versions:
 * SVR3 1987-10-28: assembler ported, linker not ported
 * SVR3 1988-05-27: assembler ported, linker not ported
 * SVR3 1989-10-03: assembler ported, linker not ported
-* SunOS 4.0.1 1988-11-16: assembler not ported, linker not ported
+* SunOS 4.0.1 1988-11-16: assembler ported, linker not ported
 * SunOS 4.0.2 1989-07-17: assembler same as in SunOS 4.0.1, linker not ported
 
 ## Building it

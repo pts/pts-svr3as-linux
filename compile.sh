@@ -46,12 +46,34 @@ if test -f svr3as-1989-10-03.svr3; then
   test "$(sha256sum <svr3as-1989-10-03)" = "d0ee5856c95fa32f22693631e954e2dfb12bd7320aadc0aac15f3a70898e6fc0  -"
 fi
 
+if test -f sunos4as-1988-11-16.svr3; then
+  test "$(sha256sum <sunos4as-1988-11-16.svr3)" = "1430efc421121826f6e04cb6f21f87007f1786961c1ae8c4d5e05b6c5dbe061a  -"
+  rm -f sunos4as-1988-11-16
+  nasm -w+orphan-labels -f bin -O0 -o sunos4as-1988-11-16 sunos4as-1988-11-16.nasm
+  chmod +x sunos4as-1988-11-16
+  test "$(sha256sum <sunos4as-1988-11-16)" = "c335c2fa05c13bf6badd549a0b3ae4e302f75b11f7a0fc8e04883a7dfa28d8ed  -"
+  if test -f sunos4as-1988-11-16.sym.inc.nasm; then
+    nasm -w+orphan-labels -f elf -O0 -DALLOW_X_SECTIONS -DUSE_SYMS -DUSE_DEBUG -o sunos4as-1988-11-16.o sunos4as-1988-11-16.nasm
+    # GNU ld(1) puts PT_LOAD sections in the opposite order in the file, that's why there are mismatches.
+    /usr/bin/ld -m elf_i386 -static -nostdlib --fatal-warnings --section-start=.xtext=0x0d1074 --section-start=.xdata=0x0111b7 --section-start=.xbss=0x1942f -o sunos4as-1988-11-16.elf sunos4as-1988-11-16.o
+  fi
+fi
+
 # --- Tests. They don't work with cross-compilation.
 
 for prog in svr3as-1987-10-28 svr3as-1988-05-27 svr3as-1989-10-03; do
   test -f "$prog" || continue
   rm -f test.o
-  ./"$prog" -dt test.s
+  # The -dg and -dv flags are ignored.
+  ./"$prog" -dt -dg -dv test.s
+  cmp -l test.o.good test.o
+done
+for prog in sunos4as-1988-11-16; do
+  test -f "$prog" || continue
+  rm -f test.o
+  # The -dg flag prevents the -lg symbol from being generated.
+  # The -dv flag prevents the .version directive from adding a string to the .comment section.
+  ./"$prog" -dt -dg -dv test.s
   cmp -l test.o.good test.o
 done
 
