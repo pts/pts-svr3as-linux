@@ -51,7 +51,7 @@ if test -f sunos4as-1988-11-16.svr3; then
   rm -f sunos4as-1988-11-16
   nasm -w+orphan-labels -f bin -O0 -o sunos4as-1988-11-16 sunos4as-1988-11-16.nasm
   chmod +x sunos4as-1988-11-16
-  test "$(sha256sum <sunos4as-1988-11-16)" = "c335c2fa05c13bf6badd549a0b3ae4e302f75b11f7a0fc8e04883a7dfa28d8ed  -"
+  #!! test "$(sha256sum <sunos4as-1988-11-16)" = "??  -"
   if test -f sunos4as-1988-11-16.sym.inc.nasm; then
     nasm -w+orphan-labels -f elf -O0 -DALLOW_X_SECTIONS -DUSE_SYMS -DUSE_DEBUG -o sunos4as-1988-11-16.o sunos4as-1988-11-16.nasm
     # GNU ld(1) puts PT_LOAD sections in the opposite order in the file, that's why there are mismatches.

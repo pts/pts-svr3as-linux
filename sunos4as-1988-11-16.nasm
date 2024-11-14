@@ -36,9 +36,9 @@ define.xbin 'sunos4as-1988-11-16.svr3'
 %ifdef USE_DEBUG
   define.xtext 0x00bab8+0x4d4, 0x0d1074, 0x000074
 %else
-  define.xtext 0x00bab8+0x1a, 0x0d1074, 0x000074
+  define.xtext 0x00b59a, 0x0d1074, 0x000074
 %endif
-define.xdata 0x00842f-0x1b7, 0x0111b7, 0x0101b7, 0xb2ca0-0x1b7  ; Size of .data: 0x842f Orirignal size of .data+.bss: 0xa1ca0
+define.xdata 0x00842f-0x1b8, 0x0111b7, 0x0101b7, 0xb2ca0-0x1b7  ; Size of .data: 0x842f Orirignal size of .data+.bss: 0xa1ca0
 opt.o0  ; Make NASM compilation faster. For this file the output is the same
 
 filenames_0 requ 0x19e34
@@ -50,13 +50,14 @@ aLg_0 requ 0x1908d
 outword requ 0xb2888  ; 1 byte.
 yytext requ 0x19eb4
 dword_B2884 requ 0xb2884
+poscnt requ 0x19108
 ;mini_errno requ  ...  ; This program doesn't use errno (it was at 0x19e20 in original .xbss).
 unused_w1 requ 0x17826  ; In .xdata. Gap.
 unused_d2 requ 0x17820  ; In .xdata. Previously yynerrs. Gap.
 
 %ifdef USE_SYMS
   ; Generate it from disassembly listing:
-  ; <sunos4as-1988-11-16.svr3.lst perl -we 'use integer; use strict; my %skipsyms = map { $_ => 1 } qw(unused_w1 cfile dlflag filenames_0 __pathname_o_out fdin fdsect outword getargs main yylex yyparse aspass1 signal_handler errmsg deltemps doreals codgen fix outsyms unused___unused_helper10 _ctype_ ctype_ary coff_filehdr_f_timdat unused_inline unused_dotzero aspass2 passnbr lclatof picflag headers setfile lookup aLg_0 put_lg_break dword_B2884 yytext atob16f); while (<STDIN>) { die "fatal: syntax: $_" if !s@^[.](\w+):([0-9A-F]{8})\s+@@; next if $1 eq "header"; my $vaddr = hex($2); $vaddr += 0x0d0000 if $1 eq "xtext"; next if $vaddr < 0x0111fc or $vaddr > 0x0c4304 and $vaddr < 0x0d14d4 or $vaddr > 0x0dc344; s@\s*;.*@@s; chomp; next if !length; s@\s+@ @g; if (m@^([^\s:]+)(?: proc\b|:| d[bwdq]\b)@) { my $sym = $1; next if exists($skipsyms{$sym}); next if $sym =~ m@^loc(?:ret)?_@; $sym =~ s@^(?=pop)@\$@; printf "%s requ 0x%x\n", $sym, $vaddr } }' >sunos4as-1988-11-16.sym.inc.nasm
+  ; <sunos4as-1988-11-16.svr3.lst perl -we 'use integer; use strict; my %skipsyms = map { $_ => 1 } qw(unused_w1 cfile dlflag filenames_0 __pathname_o_out fdin fdsect outword getargs main yylex yyparse aspass1 signal_handler errmsg deltemps doreals codgen fix outsyms unused___unused_helper10 _ctype_ ctype_ary coff_filehdr_f_timdat unused_inline unused_dotzero aspass2 passnbr lclatof picflag headers setfile lookup aLg_0 put_lg_break dword_B2884 yytext atob16f poscnt); while (<STDIN>) { die "fatal: syntax: $_" if !s@^[.](\w+):([0-9A-F]{8})\s+@@; next if $1 eq "header"; my $vaddr = hex($2); $vaddr += 0x0d0000 if $1 eq "xtext"; next if $vaddr < 0x0111fc or $vaddr > 0x0c4304 and $vaddr < 0x0d14d4 or $vaddr > 0x0dc344; s@\s*;.*@@s; chomp; next if !length; s@\s+@ @g; if (m@^([^\s:]+)(?: proc\b|:| d[bwdq]\b)@) { my $sym = $1; next if exists($skipsyms{$sym}); next if $sym =~ m@^loc(?:ret)?_@; $sym =~ s@^(?=pop)@\$@; printf "%s requ 0x%x\n", $sym, $vaddr } }' >sunos4as-1988-11-16.sym.inc.nasm
   %include 'sunos4as-1988-11-16.sym.inc.nasm'
 %endif
 
@@ -180,7 +181,7 @@ section .xtext
   xfill_until 0x0d1074
     ; sunos4as-1988-11-16.svr3 links dynamically against SunOS libc.so,
     ; which we don't have, so we provide an alternative libc (and libm)
-    ; implementation, based on https://github.com/pts/minilibc686.
+    ; implementation, based on https://github.com/pts/minilibc686 .
     global _start
     _start:  ; Linux i386 program entry point. Also libc trampoline.
 		; Allocate .bss manually, Linux 5.4.0 doesn't respect the memsz above. !! Add error to binpatch.inc.nasm.
@@ -199,7 +200,6 @@ section .xtext
 		jnz .ok
 		push strict byte -1
 		call mini__exit  ; Doesn't return.
-		;
       .ok:	pop eax  ; argc.
 		mov edx, esp  ; argv.
 		lea ecx, [edx+eax*4+4]  ; envp.
@@ -399,39 +399,8 @@ section .xtext
 		ret
       .call_mini_fputc:
 		; movsx eax, al : Not needed, mini_fputc ignores the high 24 bits anyway.
-		call mini_fputc_RP3  ; With extra smart linking, we could hardcore an EOF (-1) return if only mini_snprintf(...) etc., bur no mini_fprintf(...) etc. is used.
-		ret
-
-    mini___M_writebuf_relax_RP1:
-		cmp byte [eax+0x14], 4  ; FD_WRITE.
-		jne .ret
-		mov edx, [eax+0x1c]
-		mov ecx, [eax+0x4]
-		cmp edx, ecx
-		jbe .ret
-		inc byte [eax+0x14]  ; FD_WRITE_RELAXED.
-		mov [eax+0x1c], ecx
-		mov [eax+0x4], edx
-      .ret:	ret
-
-    mini___M_writebuf_unrelax_RP1:
-		cmp byte [eax+0x14], 5  ; FD_WRITE_RELAXED.
-		jne .done
-		push ebx
-		mov ebx, eax
-		push eax
-		call mini_fflush
-		mov edx, [ebx+0x1c]
-		mov ecx, [ebx+0x4]
-		dec byte [ebx+0x14]  ; FD_WRITE.
-		mov [ebx+0x4], edx
-		mov [ebx+0x1c], ecx
-		pop edx
-		pop ebx
-		ret
-      .done:	xor eax, eax
-		ret
-
+		;jmp strict near mini_fputc_RP3  ; With extra smart linking, we could hardcore an EOF (-1) return if only mini_snprintf(...) etc., bur no mini_fprintf(...) etc. is used.
+		; Fall through to mini_fputc_RP3.
     mini_fputc_RP3:  ; int mini_fputc_RP3(int c, FILE *filep) __attribute__((__regparm__(3)));
 		push ebx  ; Save EBX.
 		mov ebx, edx
@@ -477,6 +446,36 @@ section .xtext
 		push byte -1  ; Return value := -1.
       .done:	pop eax  ; Remove zero-extended local variable uc from the stack, and use it as return value.
 		pop ebx  ; Restore EBX.
+		ret
+
+    mini___M_writebuf_relax_RP1:
+		cmp byte [eax+0x14], 4  ; FD_WRITE.
+		jne .ret
+		mov edx, [eax+0x1c]
+		mov ecx, [eax+0x4]
+		cmp edx, ecx
+		jbe .ret
+		inc byte [eax+0x14]  ; FD_WRITE_RELAXED.
+		mov [eax+0x1c], ecx
+		mov [eax+0x4], edx
+      .ret:	ret
+
+    mini___M_writebuf_unrelax_RP1:
+		cmp byte [eax+0x14], 5  ; FD_WRITE_RELAXED.
+		jne .done
+		push ebx
+		mov ebx, eax
+		push eax
+		call mini_fflush
+		mov edx, [ebx+0x1c]
+		mov ecx, [ebx+0x4]
+		dec byte [ebx+0x14]  ; FD_WRITE.
+		mov [ebx+0x4], edx
+		mov [ebx+0x1c], ecx
+		pop edx
+		pop ebx
+		ret
+      .done:	xor eax, eax
 		ret
 
     mini_fflush:  ; int mini_fflush(FILE *filep);
@@ -826,7 +825,7 @@ section .xtext
       assert_addr (%1)+15
     %endm
 
-  xfill_until 0x0d14d4  ; There is a gap of about 4 bytes before this.
+  xfill_until 0x0d14d4  ; There is a gap of 10 bytes in front of this. Original code starts here.
     getargs:
     incbin_until 0x0d154b
     call mini_strcmp
@@ -841,7 +840,7 @@ section .xtext
     .not_t:
     call do_dflag_not_t
     jmp strict short jmp_to_flagcont
-    xfill_until 0x0d15c0, nop  ; Gap.
+    xfill_until 0x0d15c0, nop  ; Gap of 5 bytes.
   incbin_until 0x0d15f3
     call mini_strlen
   incbin_until 0x0d15fb
@@ -934,7 +933,7 @@ section .xtext
     cmp eax, ecx
     jne strict short .ok
     jmp strict short .error
-    xfill_until 0x0d226f, nop  ; Gap.
+    xfill_until 0x0d226f, nop  ; Gap of 2 bytes.
     .error:
     incbin_until 0x0d2286
     .ok:
@@ -1069,7 +1068,7 @@ section .xtext
     call deltemps
     push strict byte EXIT_FATAL  ; exit_code
     call mini__exit  ; Don't flush stdio streams, there is a data race.
-    xfill_until 0x0d8290  ; Gap.
+    xfill_until 0x0d8290  ; Gap of 17 bytes.
   incbin_until 0x0d82df
     push _iob_stderr
   incbin_until 0x0d82e4
@@ -1126,362 +1125,11 @@ section .xtext
   incbin_until 0x0d8c9e
     call mini_fwrite
   incbin_until 0x0d8d5c
-    atob16f:  ; Not used anymore.
-    xfill_until 0x0d8ed9
-  incbin_until 0x0d8ed9
-    lclatof:  ; Not used anymore, it was used by atob16f(...).
-    xfill_until 0x0d9103
-  ;incbin_until 0x0d8dd1
-  ;  call mini_floor
-  ;incbin_until 0x0d8df4
-  ;  call mini_pow
-  ;incbin_until 0x0d8ed9
-  ;  lclatof:
-  ;  isdigit_bl 0x0d8f5d, 0x0d8f6c
-  ;  isdigit_bl 0x0d8fbf, 0x0d8fce
-  ;  isdigit_bl 0x0d9025, 0x0d9034
-  ;  incbin_until 0x0d90d9
-  ;  call mini_ldexp
-  ;  incbin_until 0x0d9103
-  ;incbin_until 0x0d9115
-  ;  call mini_log
-  ;incbin_until 0x0d9126
-  ;  call mini_log
-  ; !! Remove these functions: mini_floor, mini_pow, mini_ldexp, mini_log.
-  incbin_until 0x0d929b
-    doreals:
-    incbin_until 0x0d92a4
-    ; Instead of calling sscanf(3) call mini_strtod(...).
-    push strict byte 0  ; endptr argument of mini_strtod(...).
-    push strict dword [ebp+3*4]  ; nptr argument of mini_strtod(...).
-    call mini_strtod
-    pop eax  ; Clean up argument nptr from the stack.
-    pop eax  ; Clean up argument endptr from the stack.
-    fstp qword [ebp-8]  ; Store the parsed double to a local variable.
-    jmp strict short .after
-    xfill_until 0x0d92b5, nop  ; Gap of 2+2 bytes.
-    .after:
-  incbin_until 0x0d94b4
-    aspass2:
-    incbin_until 0x0d955c
-    call mini_fopen
-    incbin_until 0x0d9573
-    call mini_unlink
-    incbin_until 0x0d958b
-    call mini_fopen
-    incbin_until 0x0d95b5
-    call mini_exit
-    incbin_until 0x0d95cb
-    call mini_ftell
-    incbin_until 0x0d95f9
-    call mini_fseek
-    incbin_until 0x0d960c
-    call mini_fopen
-    incbin_until 0x0d9633
-    call mini_fopen
-    incbin_until 0x0d965a
-    call mini_fopen
-    incbin_until 0x0d9681
-    call mini_fopen
-    incbin_until 0x0d9755
-    call mini_fflush
-    ferror_rp3zz_between 0x0d9760, 0x0d9769
-    incbin_until 0x0d977c
-    call mini_fclose
-    incbin_until 0x0d9788
-    call mini_fflush
-    ferror_rp3zz_between 0x0d9793, 0x0d979c
-    incbin_until 0x0d97af
-    call mini_fclose
-    incbin_until 0x0d97bb
-    call mini_fflush
-    ferror_rp3zz_between 0x0d97c6, 0x0d97cf
-    incbin_until 0x0d97e2
-    call mini_fclose
-    incbin_until 0x0d97f3
-    call mini_fopen
-    incbin_until 0x0d981a
-    call mini_fclose
-    incbin_until 0x0d9826
-    call mini_fflush
-    ferror_rp3zz_between 0x0d9831, 0x0d983a
-    incbin_until 0x0d984d
-    call mini_fclose
-    incbin_until 0x0d9859
-    call mini_ftell
-    incbin_until 0x0d986c
-    call mini_fseek
-    incbin_until 0x0d98b2
-    call mini_fseek
-    incbin_until 0x0d98c5
-    call mini_fopen
-    incbin_until 0x0d98f0
-    call mini_fclose
-    incbin_until 0x0d9922
-    call mini_fflush
-    incbin_until 0x0d99ad
-    call mini_fseek
-    incbin_until 0x0d99c4
-    call mini_fwrite
-    incbin_until 0x0d99e8
-    call mini_fwrite
-    incbin_until 0x0d99f6
-    call mini_fflush
-    ferror_rp3zz_between 0x0d9a01, 0x0d9a0a
-    incbin_until 0x0d9a1d
-    call mini_fclose
-  incbin_until 0x0d9a94
-    call mini_fopen
-  incbin_until 0x0d9ad3
-    call mini_fwrite
-  incbin_until 0x0d9b0d
-    call mini_fread
-  incbin_until 0x0d9b29
-    call mini_fwrite
-  incbin_until 0x0d9b3c
-    call mini_fread
-  incbin_until 0x0d9b52
-    call mini_fclose
-  incbin_until 0x0d9b7f
-    setfile:
-    incbin_until 0x0d9c3c
-    times 2 pop ecx  ; Clean up the arguments of the previous call to endef(...). Shorter than the original.
-    cmp byte [dgflag], 0
-    jne strict short .after_lg_break  ; Omit the `-lg' symbol.
-    ; This is a shortened version of the original code so that the comparison above fits.
-    push strict byte 0
-    push strict byte 1
-    push strict dword aLg_0
-    call lookup
-    add esp, strict byte 3*4
-    call put_lg_break
-    mov byte [dword_B2884], 1  ; Shorter than the original `mov'.
-    assert_addr 0x0d9c64
-    .after_lg_break:  ; End of shortened version of the original code.
-    incbin_until 0x0d9c69
-  incbin_until 0x0d9cc4
-    call mini_fwrite
-  incbin_until 0x0d9d30
-    call mini_fwrite
-  incbin_until 0x0d9fc0
-    unused_inline:
-    xfill_until 0x0d9fce
-  incbin_until 0xda05a
-    put_lg_break:
-  incbin_until 0x0da067
-    call mini_strcpy
-  incbin_until 0x0da0a8
-    call mini_fwrite
-  incbin_until 0x0da41f
-    call mini_fwrite
-  incbin_until 0x0da510
-    call mini_memset
-  incbin_until 0x0da55a
-    call mini_fwrite
-  incbin_until 0x0da582
-    call mini_fwrite
-  incbin_until 0x0da5ac
-    call mini_fwrite
-  incbin_until 0x0da688
-    call mini_fwrite
-  incbin_until 0x0da844
-    call mini_fwrite
-  incbin_until 0x0da863
-    call mini_fwrite
-  incbin_until 0x0da872
-    unused_dotzero:
-    xfill_until 0x0da8b0
-  incbin_until 0x0da8b0
-    codgen:
-    incbin_until 0x0da971
-    ; mini_fputc_RP3(outword, fdsect);
-    movzx eax, byte [outword]  ; Why not movsx? Was char unsigned in the compiler?
-    mov edx, [fdsect]
-    call mini_fputc_RP3
-    jmp strict short .after_fputc
-    xfill_until 0x0daa02, nop  ; Gap of 2+126 bytes.
-    .after_fputc:
-    incbin_until 0x0daa2b
-  incbin_until 0x0daa77
-    call mini_fopen
-  incbin_until 0x0daaa1
-    call mini_fread
-  incbin_until 0x0dab00
-    call mini_fclose
-  incbin_until 0x0dab47
-    call mini_fread
-  incbin_until 0x0dabe2
-    call mini_fread
-  incbin_until 0x0dac73
-    call mini_fread
-  incbin_until 0x0dac98
-    fix:
-  incbin_until 0x0dace3
-    push strict dword fix  ; Function pointer, relocated within .xtext.
-  incbin_until 0x0dacf0
-    headers:
-    incbin_until 0x0dacfe
-    call mini_ftell
-    incbin_until 0x0dad15
-    call mini_fseek
-    incbin_until 0x0dadca
-    push dword [coff_filehdr_f_timdat]  ; The original was without `['.
-    call mini_time
-    pop ecx
-    and dword [coff_filehdr_f_opthdr_and_f_flags], strict byte 0  ; Shorter than the original.
-    nop
-    assert_addr 0x0dadde
-    ;jmp strict short .after_timdat
-    ;xfill_until 0x0dadde, nop  ; Gap of 2+0 bytes.
-    ;.after_timdat:
-    incbin_until 0x0dae22
-    call mini_fwrite
-    incbin_until 0x0daf43
-    call mini_fwrite
-    incbin_until 0x0daf66
-    call mini_fseek
-    incbin_until 0x0daf76
-  incbin_until 0x0daf83
-    call mini_fopen
-  incbin_until 0x0dafa9
-    call mini_fread
-  incbin_until 0x0dafc5
-    call mini_fwrite
-  incbin_until 0x0dafd8
-    call mini_fclose
-  incbin_until 0x0db004
-    call mini_fread
-  incbin_until 0x0db0a6
-    call mini_fwrite
-  incbin_until 0x0db1a8
-    call mini_fwrite
-  incbin_until 0x0db215
-    call mini_fwrite
-  incbin_until 0x0db22b
-    outsyms:
-  incbin_until 0x0db3f5
-    call mini_fread
-  incbin_until 0x0db40b
-    call mini_fwrite
-  incbin_until 0x0db488
-    call mini_fread
-  incbin_until 0x0db49e
-    call mini_fwrite
-  incbin_until 0x0db4bf
-    push strict dword outsyms  ; Function pointer, relocated within .xtext.
-  incbin_until 0x0db584
-    call mini_calloc
-  incbin_until 0x0db5ba
-    call mini_ftell
-  incbin_until 0x0db5e5
-    call mini_fseek
-  incbin_until 0x0db5f6
-    call mini_fwrite
-  incbin_until 0x0db618
-    call mini_fseek
-  incbin_until 0x0db629
-    call mini_fwrite
-  incbin_until 0x0db63e
-    call mini_fseek
-  incbin_until 0x0db6b3
-    call mini_malloc
-  incbin_until 0x0db7ae
-    call mini_strcmp
-  incbin_until 0x0db825
-    call mini_fopen
-  incbin_until 0x0db851
-    call mini_fread
-  incbin_until 0x0dba25
-    call mini_fread
-  incbin_until 0x0dba45
-    call mini_fread
-  ferror_rp3zz_between 0x0dba5b, 0x0dba64
-  incbin_until 0x0dba80
-    call mini_fclose
-  incbin_until 0x0dbaa8
-    call mini_fopen
-  incbin_until 0x0dbac3
-    call mini_fopen
-  incbin_until 0x0dbb2f
-    call mini_fread
-  incbin_until 0x0dbb48
-    call mini_fwrite
-  incbin_until 0x0dbb8a
-    call mini_ftell
-  incbin_until 0x0dbb9e
-    call mini_fread
-  incbin_until 0x0dbd1d
-    call mini_fseek
-  incbin_until 0x0dbd3f
-    call mini_fwrite
-  incbin_until 0x0dbd6a
-    call mini_strncmp
-  incbin_until 0x0dbd92
-    call mini_fseek
-  incbin_until 0x0dbdad
-    call mini_fwrite
-  incbin_until 0x0dbdd9
-    call mini_fwrite
-  incbin_until 0x0dbdf4
-    call mini_fread
-  incbin_until 0x0dbe0a
-    call mini_fwrite
-  incbin_until 0x0dbe27
-    call mini_fread
-  ferror_rp3zz_between 0x0dbe3d, 0x0dbe46
-  ferror_rp3zz_between 0x0dbe58, 0x0dbe61
-  incbin_until 0x0dbe73
-    call mini_fclose
-  incbin_until 0x0dbe7c
-    call mini_fclose
-  incbin_until 0x0dbeb8
-    call mini_fseek
-  incbin_until 0x0dbed6
-    call mini_fread
-  incbin_until 0x0dbef9
-    call mini_fseek
-  incbin_until 0x0dbf17
-    call mini_fwrite
-  incbin_until 0x0dbf29
-    call mini_fseek
-  incbin_until 0x0dbf4c
-    call mini_fread
-  incbin_until 0x0dbf8e
-    call mini_fseek
-  incbin_until 0x0dbfa8
-    call mini_fread
-  incbin_until 0x0dbfdc
-    call mini_fseek
-  incbin_until 0x0dc006
-    call mini_fwrite
-  incbin_until 0x0dc0a6
-    call mini_calloc
-  incbin_until 0x0dc22f
-    call mini_calloc
-  incbin_until 0x0dc280
-    unused___unused_helper10:  ; Gap of 123 bytes.
-    xfill_until 0x0dc2fb
-  incbin_until 0x0dc31e
-    call mini_strncmp
-  incbin_until 0x0dc344  ; Original useful code in sunos4as-1988-11-16.svr3 until this.
-
-    do_dflag_not_t:
-		cmp al, 'l'
-		jne .not_l
-		mov byte [dlflag], al  ; Any nonzero value works.
-		ret
-		.not_l:
-		cmp al, 'v'  ; New functionality: New flag -dv: Ignore the .version directive, do not add a string to the .comment section.
-		jne .not_v
-		;mov byte [handle_directive_version], yyparse.case_do_not_call_comment  ; Modifying just the last byte makes this `mov' shorter. Unfortunately it doesn't work in `nasm -f elf' because NASM doesn't support 1-byte relocations.
-		mov dword [handle_directive_version], yyparse.case_do_not_call_comment
-		ret
-		.not_v:
-		cmp al, 'g'  ; New functionality: New flag -dg: Omit the "-lg" symbol, for compatibility with SVR3 assembler.
-		jne .not_g
-		mov byte [dgflag], al  ; Any nonzero value works.
-		.not_g:
-		ret
+    ;atob16f:  ; Not used anymore.
+    ;xfill_until 0x0d8ed9
+    ;incbin_until 0x0d8ed9
+    ;lclatof:  ; Not used anymore, it was used by atob16f(...).
+    ;xfill_until 0x0d9103
 
     mini_time:  ; time_t mini_time(time_t *tloc);
 		push ebx  ; Save.
@@ -1491,157 +1139,6 @@ section .xtext
 		li3_syscall
 		pop ebx  ; Restore.
 		ret  ; Don't check the result (EAX < 0), assume that it always succeeds.
-
-    mini_ldexp:  ; double mini_ldexp(double x, int exp);
-		; We assume that an FPU is present. !! What happens on an old Linux i386 system without an FPU, without kernel emulation? How to configure it?
-		lea eax, [esp+4]
-		fild dword [eax+8]
-		fld qword [eax]
-		fscale
-		fstp qword [eax]
-		fld qword [eax]  ; Round result to double.
-		ret
-
-    mini_log:  ; double mini_log(double x);
-		lea eax, [esp+4]
-		fldln2
-		fld qword [eax]
-		fyl2x  ; db 0xd9, 0xf1
-		fstp qword [eax]
-		fld qword [eax]  ; Round result to double.
-		ret
-
-    mini_floor:  ; double mini_floor(double x);
-		push eax  ; Make room for local variable.
-		fnstcw word [esp]  ; Save FPU control word.
-		pop eax  ; AX would have been enough, but using EAX makes the instructions shorter.
-		push eax
-		and ah, ~12
-		or ah, 4  ; Set rounding mode within AX: ROUND_DOWN<<2.
-		push eax
-		mov eax, esp
-		fld qword [eax+3*4]  ; x.
-		fldcw word [eax] ; Set rounding mode in FPU control word.
-		frndint
-		fldcw word [eax+4]  ; Restore old FPU control word.
-		fstp qword [eax]
-		fld qword [eax]  ; Round result to double.
-		pop eax  ; Clean up local variable.
-		pop eax  ; Clean up local variable.
-		ret
-
-    mini_pow:  ; double mini_pow(double x, double y);
-		fld qword [esp+4]
-		fld qword [esp+3*4]
-      .powreg:  ; x^y; st0=y, st1=x
-		ftst  ; y = 0 ?
-		fstsw ax
-		fld1  ; st0=1, st1=y, st2=x
-		sahf
-		jz short .1  ; return 1
-		fcomp st1  ; y = 1 ?
-		fstsw ax
-		fxch st1  ; st0=x, st1=y
-		sahf
-		jz short .1  ; return x
-		ftst  ; x = 0 ?
-		fstsw ax
-		sahf
-		je short .1
-		jnc short .finpow  ; x > 0
-		fxch st1  ; st0=y, st1=x
-		fld st0  ; st0=y, st1=y, st2=x
-		frndint  ; st0=int(y)
-		fcomp st1  ; y = int(y)?
-		fstsw ax
-		fxch st1
-		sahf
-		jnz short .finpow  ; fyl2x -> st0 = NaN
-		; Is y even or odd?
-		fld1
-		fadd st0, st0  ; st0 = 2
-		fdivr st0, st2  ; st0=st2/2
-		frndint
-		fadd st0, st0
-		fcomp st2  ; # st0 = x, st1 = y
-		fstsw ax  ; # st0 = -x
-		fchs  ; Change sign.
-		sahf
-		jz short .finpow  ; y is even.
-		call .finpow  ; y is odd.
-		fchs  ; Change sign.
-      .1:	ret
-      .finpow:  ; This can be the tail of exp(...) as well. TODO(pts): Share this with smart.nasm.
-		fyl2x
-		fst st1
-		frndint
-		fst st2
-		fsubp st1, st0
-		f2xm1
-		fld1
-		faddp st1, st0
-		fscale
-		ret
-
-    mini_strlen:  ; size_t mini_strlen(const char *s);
-		push edi
-		mov edi, [esp+8]  ; Argument s.
-		xor eax, eax
-		or ecx, byte -1  ; ECX := -1.
-		repne scasb
-		sub eax, ecx
-		dec eax
-		dec eax
-		pop edi
-		ret
-
-    mini_strncmp:  ; int mini_strncmp(const void *s1, const void *s2, size_t n);
-		mov ecx, [esp+0xc]  ; n.
-      .in_ecx:  ; This is the entry point to mini_strncmp from mini_strcmp, with ECX already set to -1U (maximum).
-		push esi
-		push edi
-		mov esi, [esp+0xc]  ; s1.
-		mov edi, [esp+0x10]  ; s2.
-		; TODO(pts): Make the code below shorter.
-		jecxz .equal
-      .next:	lodsb
-		scasb
-		je .same_char
-		sbb eax, eax
-		sbb eax, byte -1  ; With the previous instruction: EAX := (CF ? -1 : 1).
-		jmp short .done
-      .same_char:
-		test al, al
-		jz .equal
-		loop .next
-      .equal:	xor eax, eax
-      .done:	pop edi
-		pop esi
-		ret
-
-    mini_strcmp:  ; int mini_strcmp(const char *s1, const char *s2);
-		or ecx, strict byte -1
-		jmp strict short mini_strncmp.in_ecx
-
-    mini_strncpy:  ; char *mini_strncpy(char *dest, const char *src, size_t n);
-		mov ecx, [esp+0xc]  ; Argument n.
-      .in_ecx:  ; This is the entry point to mini_strncpy from mini_strcpy, with ECX already set to -1U (maximum).
-		push edi  ; Save.
-		mov edi, [esp+8]  ; Argument dest.
-		mov edx, [esp+0xc]  ; Argument src.
-		push edi
-      .1:	test ecx, ecx
-		jz short .2
-		dec ecx
-		mov al, [edx]
-		stosb
-		inc edx
-		test al, al
-		jnz short .1
-		rep stosb  ; Fill the rest of dest with \0.
-      .2:	pop eax  ; Result: pointer to dest.
-		pop edi  ; Restore.
-		ret
 
     mini_strcpy:  ; char *mini_strcpy(char *dest, const char *src);
 		push edi
@@ -2123,61 +1620,158 @@ section .xtext
 		pop edi
 		ret
 
-    mini_prng_mix3_RP3:  ; uint32_t mini_prng_mix3_RP3(uint32_t key) __attribute__((__regparm__(3)));
-      ; mini_prng_mix3 is a period 2**32-1 PNRG ([13,17,5]), to fill the seeds.
-      ;
-      ; https://stackoverflow.com/a/54708697 , https://stackoverflow.com/a/70960914
-      ;
-      ; if (!key) ++key;
-      ; key ^= (key << 13);
-      ; key ^= (key >> 17);
-      ; key ^= (key << 5);
-      ; return key;
-		test eax, eax
-		jnz .nz
-		inc eax
-      .nz:	mov edx, eax
-		shl edx, 13
-		xor eax, edx
-		mov edx, eax
-		shr edx, 17
-		xor eax, edx
-		mov edx, eax
-		shl edx, 5
-		xor eax, edx
-		ret
-
-    mini_fclose:  ; int mini_fclose(FILE *stream);
-		push esi
-		push ebx
-		mov ebx, [esp+0xc]
-		mov al, [ebx+0x14]
-		or esi, byte -0x1
-		test al, al
-		je .1
-		dec eax
-		xor esi, esi
-		cmp al, 0x2
-		jbe .3
-		push ebx
-		call mini_fflush
-		xchg esi, eax  ; ESI := EAX; EAX := junk.
-		pop edx
-      .3:	push dword [ebx+0x10]
-		call mini_close
-		pop eax  ; Clean up argument of mini_close(...) from the stack.
-		xor eax, eax  ; EAX := 0.
-		mov [ebx+0x14], al  ; filep->dire = FD_CLOSED;
-		dec eax
-		mov [ebx+0x10], eax  ; filep->fd = EOF;
-		mov eax, [ebx+4]
-		mov [ebx], eax  ; filep->buf_write_ptr = filep->buf_end;  /* Sentinel for future calls to mini_fputc(..., filep). */
-		mov eax, [ebx+0xc]
-		mov [ebx+8], eax  ; filep->buf_read_ptr = filep->buf_last;  /* Sentinel for future calls to mini_fgetc(filep). */
-      .1:	xchg eax, esi  ; EAX := ESI; ESI := junk.
-		pop ebx
-		pop esi
-		ret
+    xfill_until 0x0d9103  ; Gap of 9 bytes.
+  incbin_until 0x0d929b
+    doreals:
+    incbin_until 0x0d92a4
+    ; Instead of calling sscanf(3) call mini_strtod(...).
+    push strict byte 0  ; endptr argument of mini_strtod(...).
+    push strict dword [ebp+3*4]  ; nptr argument of mini_strtod(...).
+    call mini_strtod
+    pop eax  ; Clean up argument nptr from the stack.
+    pop eax  ; Clean up argument endptr from the stack.
+    fstp qword [ebp-8]  ; Store the parsed double to a local variable.
+    jmp strict short .after
+    xfill_until 0x0d92b5, nop  ; Gap of 2+2 bytes.
+    .after:
+  incbin_until 0x0d94b4
+    aspass2:
+    incbin_until 0x0d955c
+    call mini_fopen
+    incbin_until 0x0d9573
+    call mini_unlink
+    incbin_until 0x0d958b
+    call mini_fopen
+    incbin_until 0x0d95b5
+    call mini_exit
+    incbin_until 0x0d95cb
+    call mini_ftell
+    incbin_until 0x0d95f9
+    call mini_fseek
+    incbin_until 0x0d960c
+    call mini_fopen
+    incbin_until 0x0d9633
+    call mini_fopen
+    incbin_until 0x0d965a
+    call mini_fopen
+    incbin_until 0x0d9681
+    call mini_fopen
+    incbin_until 0x0d9755
+    call mini_fflush
+    ferror_rp3zz_between 0x0d9760, 0x0d9769
+    incbin_until 0x0d977c
+    call mini_fclose
+    incbin_until 0x0d9788
+    call mini_fflush
+    ferror_rp3zz_between 0x0d9793, 0x0d979c
+    incbin_until 0x0d97af
+    call mini_fclose
+    incbin_until 0x0d97bb
+    call mini_fflush
+    ferror_rp3zz_between 0x0d97c6, 0x0d97cf
+    incbin_until 0x0d97e2
+    call mini_fclose
+    incbin_until 0x0d97f3
+    call mini_fopen
+    incbin_until 0x0d981a
+    call mini_fclose
+    incbin_until 0x0d9826
+    call mini_fflush
+    ferror_rp3zz_between 0x0d9831, 0x0d983a
+    incbin_until 0x0d984d
+    call mini_fclose
+    incbin_until 0x0d9859
+    call mini_ftell
+    incbin_until 0x0d986c
+    call mini_fseek
+    incbin_until 0x0d98b2
+    call mini_fseek
+    incbin_until 0x0d98c5
+    call mini_fopen
+    incbin_until 0x0d98f0
+    call mini_fclose
+    incbin_until 0x0d9922
+    call mini_fflush
+    incbin_until 0x0d99ad
+    call mini_fseek
+    incbin_until 0x0d99c4
+    call mini_fwrite
+    incbin_until 0x0d99e8
+    call mini_fwrite
+    incbin_until 0x0d99f6
+    call mini_fflush
+    ferror_rp3zz_between 0x0d9a01, 0x0d9a0a
+    incbin_until 0x0d9a1d
+    call mini_fclose
+  incbin_until 0x0d9a94
+    call mini_fopen
+  incbin_until 0x0d9ad3
+    call mini_fwrite
+  incbin_until 0x0d9b0d
+    call mini_fread
+  incbin_until 0x0d9b29
+    call mini_fwrite
+  incbin_until 0x0d9b3c
+    call mini_fread
+  incbin_until 0x0d9b52
+    call mini_fclose
+  incbin_until 0x0d9b7f
+    setfile:
+    incbin_until 0x0d9c3c
+    times 2 pop ecx  ; Clean up the arguments of the previous call to endef(...). Shorter than the original.
+    cmp byte [dgflag], 0
+    jne strict short .after_lg_break  ; Omit the `-lg' symbol.
+    ; This is a shortened version of the original code so that the comparison above fits.
+    push strict byte 0
+    push strict byte 1
+    push strict dword aLg_0
+    call lookup
+    add esp, strict byte 3*4
+    call put_lg_break
+    mov byte [dword_B2884], 1  ; Shorter than the original `mov'.
+    assert_addr 0x0d9c64
+    .after_lg_break:  ; End of shortened version of the original code.
+    incbin_until 0x0d9c69
+  incbin_until 0x0d9cc4
+    call mini_fwrite
+  incbin_until 0x0d9d30
+    call mini_fwrite
+  incbin_until 0x0d9fc0
+    unused_inline:
+    xfill_until 0x0d9fce
+  incbin_until 0xda05a
+    put_lg_break:
+  incbin_until 0x0da067
+    call mini_strcpy
+  incbin_until 0x0da0a8
+    call mini_fwrite
+  incbin_until 0x0da41f
+    call mini_fwrite
+  incbin_until 0x0da510
+    call mini_memset
+  incbin_until 0x0da55a
+    call mini_fwrite
+  incbin_until 0x0da582
+    call mini_fwrite
+  incbin_until 0x0da5ac
+    call mini_fwrite
+  incbin_until 0x0da688
+    call mini_fwrite
+  incbin_until 0x0da844
+    call mini_fwrite
+  incbin_until 0x0da863
+    call mini_fwrite
+  incbin_until 0x0da872
+    unused_dotzero:
+    xfill_until 0x0da8b0
+  incbin_until 0x0da8b0
+    codgen:
+    incbin_until 0x0da971
+    ; mini_fputc_RP3(outword, fdsect);
+    movzx eax, byte [outword]  ; Why not movsx? Was char unsigned in the compiler?
+    mov edx, [fdsect]
+    call mini_fputc_RP3
+    jmp strict near codegen.after_fputc
 
     mini_fread:  ; size_t mini_fread(void *ptr, size_t size, size_t nmemb, FILE *stream);
 		push ebp
@@ -2233,6 +1827,308 @@ section .xtext
 		pop edi
 		pop ebx
 		pop ebp
+		ret
+
+    codegen.after_fputc:
+    assert_addr 0x0daa03
+    and word [poscnt], byte 0  ; Shorter than the original becase `and' is shorter than `mov'.
+    assert_addr 0x0daa0b  ; No gap, just a few bytes.
+    incbin_until 0x0daa2b
+  incbin_until 0x0daa77
+    call mini_fopen
+  incbin_until 0x0daaa1
+    call mini_fread
+  incbin_until 0x0dab00
+    call mini_fclose
+  incbin_until 0x0dab47
+    call mini_fread
+  incbin_until 0x0dabe2
+    call mini_fread
+  incbin_until 0x0dac73
+    call mini_fread
+  incbin_until 0x0dac98
+    fix:
+  incbin_until 0x0dace3
+    push strict dword fix  ; Function pointer, relocated within .xtext.
+  incbin_until 0x0dacf0
+    headers:
+    incbin_until 0x0dacfe
+    call mini_ftell
+    incbin_until 0x0dad15
+    call mini_fseek
+    incbin_until 0x0dadca
+    push dword [coff_filehdr_f_timdat]  ; The original was without `['.
+    call mini_time
+    pop ecx
+    and dword [coff_filehdr_f_opthdr_and_f_flags], strict byte 0  ; Shorter than the original.
+    nop
+    assert_addr 0x0dadde
+    ;jmp strict short .after_timdat
+    ;xfill_until 0x0dadde, nop  ; Gap of 2+0 bytes.
+    ;.after_timdat:
+    incbin_until 0x0dae22
+    call mini_fwrite
+    incbin_until 0x0daf43
+    call mini_fwrite
+    incbin_until 0x0daf66
+    call mini_fseek
+    incbin_until 0x0daf76
+  incbin_until 0x0daf83
+    call mini_fopen
+  incbin_until 0x0dafa9
+    call mini_fread
+  incbin_until 0x0dafc5
+    call mini_fwrite
+  incbin_until 0x0dafd8
+    call mini_fclose
+  incbin_until 0x0db004
+    call mini_fread
+  incbin_until 0x0db0a6
+    call mini_fwrite
+  incbin_until 0x0db1a8
+    call mini_fwrite
+  incbin_until 0x0db215
+    call mini_fwrite
+  incbin_until 0x0db22b
+    outsyms:
+  incbin_until 0x0db3f5
+    call mini_fread
+  incbin_until 0x0db40b
+    call mini_fwrite
+  incbin_until 0x0db488
+    call mini_fread
+  incbin_until 0x0db49e
+    call mini_fwrite
+  incbin_until 0x0db4bf
+    push strict dword outsyms  ; Function pointer, relocated within .xtext.
+  incbin_until 0x0db584
+    call mini_calloc
+  incbin_until 0x0db5ba
+    call mini_ftell
+  incbin_until 0x0db5e5
+    call mini_fseek
+  incbin_until 0x0db5f6
+    call mini_fwrite
+  incbin_until 0x0db618
+    call mini_fseek
+  incbin_until 0x0db629
+    call mini_fwrite
+  incbin_until 0x0db63e
+    call mini_fseek
+  incbin_until 0x0db6b3
+    call mini_malloc
+  incbin_until 0x0db7ae
+    call mini_strcmp
+  incbin_until 0x0db825
+    call mini_fopen
+  incbin_until 0x0db851
+    call mini_fread
+  incbin_until 0x0dba25
+    call mini_fread
+  incbin_until 0x0dba45
+    call mini_fread
+  ferror_rp3zz_between 0x0dba5b, 0x0dba64
+  incbin_until 0x0dba80
+    call mini_fclose
+  incbin_until 0x0dbaa8
+    call mini_fopen
+  incbin_until 0x0dbac3
+    call mini_fopen
+  incbin_until 0x0dbb2f
+    call mini_fread
+  incbin_until 0x0dbb48
+    call mini_fwrite
+  incbin_until 0x0dbb8a
+    call mini_ftell
+  incbin_until 0x0dbb9e
+    call mini_fread
+  incbin_until 0x0dbd1d
+    call mini_fseek
+  incbin_until 0x0dbd3f
+    call mini_fwrite
+  incbin_until 0x0dbd6a
+    call mini_strncmp
+  incbin_until 0x0dbd92
+    call mini_fseek
+  incbin_until 0x0dbdad
+    call mini_fwrite
+  incbin_until 0x0dbdd9
+    call mini_fwrite
+  incbin_until 0x0dbdf4
+    call mini_fread
+  incbin_until 0x0dbe0a
+    call mini_fwrite
+  incbin_until 0x0dbe27
+    call mini_fread
+  ferror_rp3zz_between 0x0dbe3d, 0x0dbe46
+  ferror_rp3zz_between 0x0dbe58, 0x0dbe61
+  incbin_until 0x0dbe73
+    call mini_fclose
+  incbin_until 0x0dbe7c
+    call mini_fclose
+  incbin_until 0x0dbeb8
+    call mini_fseek
+  incbin_until 0x0dbed6
+    call mini_fread
+  incbin_until 0x0dbef9
+    call mini_fseek
+  incbin_until 0x0dbf17
+    call mini_fwrite
+  incbin_until 0x0dbf29
+    call mini_fseek
+  incbin_until 0x0dbf4c
+    call mini_fread
+  incbin_until 0x0dbf8e
+    call mini_fseek
+  incbin_until 0x0dbfa8
+    call mini_fread
+  incbin_until 0x0dbfdc
+    call mini_fseek
+  incbin_until 0x0dc006
+    call mini_fwrite
+  incbin_until 0x0dc0a6
+    call mini_calloc
+  incbin_until 0x0dc22f
+    call mini_calloc
+  incbin_until 0x0dc280
+    ;unused___unused_helper10:  ; Gap replaced with minilibc686 code.
+
+    do_dflag_not_t:
+		cmp al, 'l'
+		jne .not_l
+		mov byte [dlflag], al  ; Any nonzero value works.
+		ret
+		.not_l:
+		cmp al, 'v'  ; New functionality: New flag -dv: Ignore the .version directive, do not add a string to the .comment section.
+		jne .not_v
+		;mov byte [handle_directive_version], yyparse.case_do_not_call_comment  ; Modifying just the last byte makes this `mov' shorter. Unfortunately it doesn't work in `nasm -f elf' because NASM doesn't support 1-byte relocations.
+		mov dword [handle_directive_version], yyparse.case_do_not_call_comment
+		ret
+		.not_v:
+		cmp al, 'g'  ; New functionality: New flag -dg: Omit the "-lg" symbol, for compatibility with SVR3 assembler.
+		jne .not_g
+		mov byte [dgflag], al  ; Any nonzero value works.
+		.not_g:
+		ret
+    mini_strlen:  ; size_t mini_strlen(const char *s);
+		push edi
+		mov edi, [esp+8]  ; Argument s.
+		xor eax, eax
+		or ecx, byte -1  ; ECX := -1.
+		repne scasb
+		sub eax, ecx
+		dec eax
+		dec eax
+		pop edi
+		ret
+
+    mini_strncmp:  ; int mini_strncmp(const void *s1, const void *s2, size_t n);
+		mov ecx, [esp+0xc]  ; n.
+      .in_ecx:  ; This is the entry point to mini_strncmp from mini_strcmp, with ECX already set to -1U (maximum).
+		push esi
+		push edi
+		mov esi, [esp+0xc]  ; s1.
+		mov edi, [esp+0x10]  ; s2.
+		; TODO(pts): Make the code below shorter.
+		jecxz .equal
+      .next:	lodsb
+		scasb
+		je .same_char
+		sbb eax, eax
+		sbb eax, byte -1  ; With the previous instruction: EAX := (CF ? -1 : 1).
+		jmp short .done
+      .same_char:
+		test al, al
+		jz .equal
+		loop .next
+      .equal:	xor eax, eax
+      .done:	pop edi
+		pop esi
+		ret
+
+    mini_strcmp:  ; int mini_strcmp(const char *s1, const char *s2);
+		or ecx, strict byte -1
+		jmp strict short mini_strncmp.in_ecx
+
+    mini_prng_mix3_RP3:  ; uint32_t mini_prng_mix3_RP3(uint32_t key) __attribute__((__regparm__(3)));
+      ; mini_prng_mix3 is a period 2**32-1 PNRG ([13,17,5]), to fill the seeds.
+      ;
+      ; https://stackoverflow.com/a/54708697 , https://stackoverflow.com/a/70960914
+      ;
+      ; if (!key) ++key;
+      ; key ^= (key << 13);
+      ; key ^= (key >> 17);
+      ; key ^= (key << 5);
+      ; return key;
+		test eax, eax
+		jnz .nz
+		inc eax
+      .nz:	mov edx, eax
+		shl edx, 13
+		xor eax, edx
+		mov edx, eax
+		shr edx, 17
+		xor eax, edx
+		mov edx, eax
+		shl edx, 5
+		xor eax, edx
+		ret
+
+    assert_addr 0x0dc2fb  ; No gap, it fits tightly.
+  incbin_until 0x0dc31e
+    call mini_strncmp
+  incbin_until 0x0dc344  ; Original useful code in sunos4as-1988-11-16.svr3 until this.
+
+    mini_strncpy:  ; char *mini_strncpy(char *dest, const char *src, size_t n);
+		mov ecx, [esp+0xc]  ; Argument n.
+      .in_ecx:  ; This is the entry point to mini_strncpy from mini_strcpy, with ECX already set to -1U (maximum).
+		push edi  ; Save.
+		mov edi, [esp+8]  ; Argument dest.
+		mov edx, [esp+0xc]  ; Argument src.
+		push edi
+      .1:	test ecx, ecx
+		jz short .2
+		dec ecx
+		mov al, [edx]
+		stosb
+		inc edx
+		test al, al
+		jnz short .1
+		rep stosb  ; Fill the rest of dest with \0.
+      .2:	pop eax  ; Result: pointer to dest.
+		pop edi  ; Restore.
+		ret
+
+    mini_fclose:  ; int mini_fclose(FILE *stream);
+		push esi
+		push ebx
+		mov ebx, [esp+0xc]
+		mov al, [ebx+0x14]
+		or esi, byte -0x1
+		test al, al
+		je .1
+		dec eax
+		xor esi, esi
+		cmp al, 0x2
+		jbe .3
+		push ebx
+		call mini_fflush
+		xchg esi, eax  ; ESI := EAX; EAX := junk.
+		pop edx
+      .3:	push dword [ebx+0x10]
+		call mini_close
+		pop eax  ; Clean up argument of mini_close(...) from the stack.
+		xor eax, eax  ; EAX := 0.
+		mov [ebx+0x14], al  ; filep->dire = FD_CLOSED;
+		dec eax
+		mov [ebx+0x10], eax  ; filep->fd = EOF;
+		mov eax, [ebx+4]
+		mov [ebx], eax  ; filep->buf_write_ptr = filep->buf_end;  /* Sentinel for future calls to mini_fputc(..., filep). */
+		mov eax, [ebx+0xc]
+		mov [ebx+8], eax  ; filep->buf_read_ptr = filep->buf_last;  /* Sentinel for future calls to mini_fgetc(filep). */
+      .1:	xchg eax, esi  ; EAX := ESI; ESI := junk.
+		pop ebx
+		pop esi
 		ret
 
     mini_fwrite:  ; size_t mini_fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream);
@@ -2512,12 +2408,9 @@ section .xtext
 		ret
 
     xfill_until s.xtext.vstart+s.xtext.fsize
-    ; File offset here (end of .xtext): 0xbb1c.
-    ; File offset of .xdata start: 0xc0ad.
-    ; Gap: 0xc0ad-0xbb1c == 1124 bytes. This gap can be used to write code.
 
 section .xdata
-  assert_addr 0x111b7  ; Gap between 0x11000 and 0x1101b1.
+  assert_addr 0x111b7  ; Gap between 0x11000 and 0x111b7.
   assert_addr 0x110ad+0x104+6
   str_tmp:	db '/tmp', 0  ; P_tmpdir, Linux-specific.
   str_tmpdir:	db 'TMPDIR', 0
@@ -2567,11 +2460,12 @@ section .xdata
     coff_filehdr_f_timdat: dd coff_filehdr_f_timdat  ; NULL here means write 0 as the timestamp, for reproducible builds.
     coff_filehdr_f_opthdr_and_f_flags equ coff_filehdr_f_timdat+3*4
   r 0x193d0+2, 0x19404+2
-  incbin_until 0x1942f  ; Truncated end of .xdata in sunos4as-1988-11-16.svr3.
+  incbin_until 0x1942e  ; Truncated end of .xdata in sunos4as-1988-11-16.svr3.
 
 section .xbss
   STRUCT_FILE_COUNT equ 17  ; 17 files opened by fopen(...) are enough, including the temporary files.
-  assert_addr 0x1942f  ; First half of libc .xbss.
+  assert_addr 0x1942e  ; First half of libc .xbss.
+    resb 1  ; Terminating NUL for the '.ef' string at the end of original .xdata.
     resb 1  ; Gap of 1 byte. sAlign to multiple of 4.
     mini___M_global_files: resb STRUCT_FILE_COUNT*0x24  ; 0x24 is sizeof(struct SMS_FILE).
     .end:
