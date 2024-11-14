@@ -13,13 +13,14 @@
 ; This program creates (and removes) up to 15 temporary files (in `$TMPDIR'
 ; or `/tmp') during normal operation.
 ;
-; !! Why segmentation fault in full run (but not help) in qemu-i386?
+; !! SYS_brk in qemu-i386 2.11.1 is still broken (thus mini_malloc_simple_unaligned always returns NULL, thus segfault) because of our unusual .xbss-then-.xtext PT_LOAD order. To make it work, use SYS_mmap instead of SYS_brk.
 ; !! Check .xtext and .xdata padding (&x0xfff) in the final program, maybe we can save 0xfff bytes.
 ; !! Make unknown flags an error rather than a warning. Fix it in all 3 .nasm sources.
 ; !! "trouble writing; probably out of temp-file space" appears multiple times; deduplicate all strings.
 ; !! Add opt.xdata.first to match section order in sunos4as-1988-11-16.elf.
 ; !! Fix infinite loop when the input .s file doesn't end with a newline. Is it a libc bug or are the two others also buggy?
 ; !! Fix error line numbers. SVR3 assembler is also broken.
+; !! Make the virtual memory gap between .xbss and .text smaller (now the gap is 0x0c4000..0x0d1000); this affects relocations.
 ;
 
 %include 'binpatch.inc.nasm'
@@ -195,6 +196,7 @@ section .xtext
 		push strict byte MAP.PRIVATE|MAP.ANONYMOUS|MAP.FIXED  ; flags.
 		push strict byte PROT.READ|PROT.WRITE  ; prot.
 		push strict dword ((s.xdata.vstart+s.xdata.vsize+0xfff)&~0xfff)-((s.xdata.vstart+s.xdata.fsize+0xfff)&~0xfff)  ; length.
+		;push strict dword ((s.xtext.vstart)&~0xfff)-((s.xdata.vstart+s.xdata.fsize+0xfff)&~0xfff)  ; length. Occupy also the virtual memory gap between .xbss and .xtext. This still doesn't fix qemu-i386 SYS_brk.
 		push strict ((s.xdata.vstart+s.xdata.fsize+0xfff)&~0xfff)  ; addr.
 		mov ebx, esp  ; buffer, to be passed to sys_mmap(...).
 		push strict byte SYS_mmap
