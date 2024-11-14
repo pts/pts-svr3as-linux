@@ -193,6 +193,7 @@ cpu 386
   section .bss section.bss.qualifiers %1  ; NASM default: section .bss           nobits        alloc   noexec  write    align=4
   %define section.bss.qualifiers  ; Prevent subsequent warning.
   %idefine section __nsection
+  %define __snobits
   __undef_xs
 %endm
 
@@ -404,7 +405,16 @@ cpu 386
   fill_until %1, nop
 %endm
 %macro fill_until 1
-  fill_until %1, db 0
+  %ifdef __snobits
+    %if -($-$$)+((%1)-__vstart)<0
+      times -($-$$)+((%1)-__vstart) resb 0  ; A more consistent error.
+    %else
+      resb -($-$$)+((%1)-__vstart)
+    %endif
+    assert_addr %1
+  %else
+    fill_until %1, db 0
+  %endif
 %endm
 %macro fill_until 2+  ; Example: fill_until 0x1234, clc
   times -($-$$)+((%1)-__vstart) %2
@@ -517,6 +527,7 @@ extern emu_seh0_frame
     %undef section
     section .header
     %idefine section __nsection
+    %undef __snobits
     %assign __vstart s.header.vstart
     %assign __fstart s.header.fstart
     %assign __fsize  s.header.fsize
@@ -538,6 +549,7 @@ extern emu_seh0_frame
     %undef section
     section .idata
     %idefine section __nsection
+    %undef __snobits
     %assign __vstart s.idata.vstart
     %assign __fstart s.idata.fstart
     %assign __fsize  s.idata.fsize
@@ -559,6 +571,7 @@ extern emu_seh0_frame
     %undef section
     section __xtext
     %idefine section __nsection
+    %undef __snobits
     %assign __vstart s.xtext.vstart
     %assign __fstart s.xtext.fstart
     %assign __fsize  s.xtext.fsize
@@ -580,6 +593,7 @@ extern emu_seh0_frame
     %undef section
     section __xrodata
     %idefine section __nsection
+    %undef __snobits
     %assign __vstart s.xrodata.vstart
     %assign __fstart s.xrodata.fstart
     %assign __fsize  s.xrodata.fsize
@@ -601,6 +615,7 @@ extern emu_seh0_frame
     %undef section
     section __xdata
     %idefine section __nsection
+    %undef __snobits
     %assign __vstart s.xdata.vstart
     %assign __fstart s.xdata.fstart
     %assign __fsize  s.xdata.fsize
@@ -622,6 +637,7 @@ extern emu_seh0_frame
     %undef section
     section __xbss
     %idefine section __nsection
+    %define __snobits
     %assign __vstart s.xdata.vstart+s.xdata.fsize
     %undef  __fstart
     %undef  __fsize
@@ -643,6 +659,7 @@ extern emu_seh0_frame
     %undef section
     section .reloc
     %idefine section __nsection
+    %undef __snobits
     %assign __vstart s.reloc.vstart
     %assign __fstart s.reloc.fstart
     %assign __fsize  s.reloc.fsize
@@ -664,6 +681,7 @@ extern emu_seh0_frame
     %undef section
     section __xdebug
     %idefine section __nsection
+    %undef __snobits
     %assign __vstart s.xdebug.vstart
     %assign __fstart s.xdebug.fstart
     %assign __fsize  s.xdebug.fsize
@@ -726,8 +744,7 @@ extern emu_seh0_frame
     %endif
     %ifdef s.xbss.used
       section.xbss
-        resb s.xdata.vsize-s.xdata.fsize+$$-$
-        assert_addr s.xdata.vstart+s.xdata.vsize
+        fill_until s.xdata.vstart+s.xdata.vsize
         s.xbss.end:
     %endif
     %ifidn __OUTPUT_FORMAT__, bin
