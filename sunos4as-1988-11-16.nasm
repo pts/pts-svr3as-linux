@@ -8,12 +8,12 @@
 ; This program runs natively on Linux i386 and Linux amd64 systems, even
 ; those which have `sysctl -w vm.mmap_min_addr=65536' (like many Linux
 ; distributions in 2018). (For that, the 2nd argument of define.xtext must
-; be at least 0x10000).
+; be at least 0x10000). This program also runs using qemu-i386 on Linux (any
+; architecture).
 ;
 ; This program creates (and removes) up to 15 temporary files (in `$TMPDIR'
 ; or `/tmp') during normal operation.
 ;
-; !! SYS_brk in qemu-i386 2.11.1 is still broken (thus mini_malloc_simple_unaligned always returns NULL, thus segfault) because of our unusual .xbss-then-.xtext PT_LOAD order. To make it work, use SYS_mmap instead of SYS_brk.
 ; !! Check .xtext and .xdata padding (&x0xfff) in the final program, maybe we can save 0xfff bytes.
 ; !! Make unknown flags an error rather than a warning. Fix it in all 3 .nasm sources.
 ; !! "trouble writing; probably out of temp-file space" appears multiple times; deduplicate all strings.
@@ -268,9 +268,6 @@ section .xtext
 		jmp strict near simple_syscall3
     mini_unlink:  ; int mini_unlink(const char *pathname);
 		push strict byte SYS_unlink
-		jmp strict near simple_syscall3
-    mini_sys_brk:  ; void *mini_sys_brk(void *addr);
-		push strict byte SYS_brk
 		jmp strict near simple_syscall3
 
     ; Called from mini_exit(...). It flushes all files opened by mini_fopen(...).
@@ -832,7 +829,31 @@ section .xtext
       assert_addr (%1)+15
     %endm
 
-  xfill_until 0x0d14d4  ; There is a gap of 9 bytes in front of this. Original code (first incbin_until) starts here.
+    mini_malloc_simple_grow_with_mmap_RP3X:  ; void *mini_malloc_simple_grow_with_mmap_RP3(void *new_end, void *base) __attribute__((__regparm__(3)++));
+      ; Input: EAX: new_end, EDX: base == `dword [_malloc_simple_base]'. Also input: 4 pushes and `sub eax, edx'.
+      ; May ruin EDX (and ECX).
+      ; We don't use SYS_brk (with shorter code) because qemu-i386 2.11.1 SYS_brk can't handle our unusual .xbss-then-.xtext virtual memory order.
+      ; As a side effect, not using SYS_brk makes memory addresses deterministic (such as by disabling virtual address randomization with `setarch i386 -R CMD').
+		; The caller does these:
+		; push strict byte 0  ; offset.
+		; push strict byte -1 ; fd.
+		; push strict byte MAP.PRIVATE|MAP.ANONYMOUS|MAP.FIXED  ; flags.
+		; push strict byte PROT.READ|PROT.WRITE  ; prot.
+		; sub eax, edx
+		; push eax  ; length.
+		; push edx  ; addr.
+		; mov edx, esp  ; buffer, to be passed to sys_mmap(...).
+		push ebx  ; Save.
+		mov ebx, edx
+		push strict byte SYS_mmap
+		pop eax
+		li3_syscall
+		pop ebx  ; Restore.
+		;add esp, strict byte 6*4  ; Clean up `long buffer[6]' from the stack.
+		;ret  ; Propagate return value of SYS_mmap in EAX.
+		ret 6*4
+
+  xfill_until 0x0d14d4  ; There is a gap of 4 bytes in front of this. Original code (first incbin_until) starts here.
     getargs:
     incbin_until 0x0d154b
     call mini_strcmp
@@ -1255,7 +1276,7 @@ section .xtext
       ;
       ; New memory blocks are requested from the system using
       ; mini_malloc_simple_unaligned(...), which eventually calls
-      ; mini_sys_brk(...). There are 30 buckets (corresponding to block sizes
+      ; SYS_mmap. There are 30 buckets (corresponding to block sizes
       ; 1<<2 .. 1<<31), each containing a signly linked list of free()d
       ; blocks. When a new block is allocated, the corresponding bucket size
       ; is tried. Blocks remain in their respective buckets, they are never
@@ -1386,12 +1407,12 @@ section .xtext
 		jmp short .do_free
 
     mini_malloc_simple_unaligned:  ; void *mini_malloc_simple_unaligned(size_t size);
-      ; Implemented using mini_sys_brk(2). Equivalent to the following C code,
-      ; but was size-optimized.
+      ; Implemented using SYS_mmap emulating SYS_brk. Equivalent to the
+      ; following C code, but was size-optimized.
       ;
       ; A simplistic allocator which creates a heap of 64 KiB first, and
       ; then doubles it when necessary. It is implemented using Linux system
-      ; call brk(2), exported by the libc as mini_sys_brk(...). free(...)ing is
+      ; call SYS_mmap. free(...)ing is
       ; not supported. Returns an unaligned address (which is OK on x86).
 		push ebx
 		mov eax, [esp+8]  ; Argument named size.
@@ -1400,25 +1421,29 @@ section .xtext
 		mov ebx, eax
 		cmp dword [_malloc_simple_base], byte 0
 		jne .7
-		xor eax, eax
-		push eax ; Argument of mini_sys_brk(2).
-		call mini_sys_brk  ; It destroys ECX and EDX.
-		pop ecx  ; Clean up argument of mini_sys_brk2(0).
+		mov eax, ((s.xtext.vstart+s.xtext.fsize+0xfff)&~0xfff)  ; Our simulated break address. This is specific to programs with .xbss-then-.xtext virtual memory order.
 		mov [_malloc_simple_free], eax
 		mov [_malloc_simple_base], eax
-		test eax, eax
-		jz short .18
 		mov eax, 0x10000  ; 64 KiB minimum allocation.
-      .9:	add eax, [_malloc_simple_base]
+      .9:	mov edx, [_malloc_simple_base]
+		add eax, edx
 		jc .18
-		push eax
-		push eax ; Argument of mini_sys_brk(2).
-		call mini_sys_brk  ; It destroys ECX and EDX.
-		pop ecx  ; Clean up argument of mini_sys_brk(2).
-		pop edx  ; This (and the next line) could be ECX instead.
-		cmp eax, edx
-		jne .18
-		mov [_malloc_simple_end], eax
+		push eax  ; Save new.
+		push edx  ; Save old.
+		push strict byte 0  ; offset.
+		push strict byte -1 ; fd.
+		push strict byte MAP.PRIVATE|MAP.ANONYMOUS|MAP.FIXED  ; flags.
+		push strict byte PROT.READ|PROT.WRITE  ; prot.
+		sub eax, edx
+		push eax  ; length.
+		push edx  ; addr.
+		mov edx, esp  ; buffer, to be passed to sys_mmap(...).
+		call mini_malloc_simple_grow_with_mmap_RP3X
+		pop edx  ; Restore old.
+		cmp eax, edx  ; Compare return value of SYS_mmap to old.
+		pop eax  ; Restore new.
+		jne .18 ; Allocation failed.
+		mov [_malloc_simple_end], eax  ; Record new.
       .7:	mov edx, [_malloc_simple_end]
 		mov eax, [_malloc_simple_free]
 		mov ecx, edx
@@ -1641,7 +1666,7 @@ section .xtext
 		pop edi
 		ret
 
-    xfill_until 0x0d9103  ; Gap of 9 bytes.
+    xfill_until 0x0d9103  ; Gap of 1 byte.
   incbin_until 0x0d929b
     doreals:
     incbin_until 0x0d92a4
