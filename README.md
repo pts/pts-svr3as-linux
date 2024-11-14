@@ -112,6 +112,7 @@ The SVR3 assemblers (`svr3as-*`) have the following features:
 * Segment registers: %es, %cs, %ss, %ds, %fs, %gs.
 * Floating-point (FPU, floating point, x87, 8087, 80387) registers: %st, %st(0), %st(1), %st(2), %st(3), %st(4), %st(5), %st(6), %st(7).
 * Assembler directives: .align, .bcd, .bss, .byte, .comm, .data, .def, .dim, .double, .endef, .even, .file, .float, .globl, .ident, .jmpbeg, .jmpend, .lcomm, .line, .llong, .ln, .long, .scl, .section, .set, .size, .string, .tag, .temp, .text, .tv, .type, .val, .value, .version.
+* Conditional assembly (e.g. .if, .ifdef, .else, .endif) is not supported.
 
 The *instab* table values are the same in all 3 assemblers, execept that
 `svr3as-1989-10-03` has different opcode values for `nop`. (This may be just
@@ -127,8 +128,11 @@ The SunOS 4.0.1 i386 assembler (`sunos4as-*`) seems to be based on SVR3
 
 * No additions or removals in instructions or registers.
 * New assembler directives:  .noopt, .optim, .stabd, .stabn, .stabs.
+* `.version "X"` adds `X` to the `.comment` section, like `.ident "X"`, and
+  doesn't compare `X` to the minimum assembler version `02.01`.
 * Support for preprocessing with m4 (enable it with the `-m` command-line
   flag, configure it with `-Y`) has been removed.
+* Adds an absolute symbol named `-lg` unconditionally.
 * Added the `-i386` command-line flag, ignored.
 * Added the `-k' flag for generation of position-independent code.
 * Changed the meaning of the `-R` flag: in SVR3 it causes the input .s file
