@@ -1,7 +1,7 @@
 # pts-svr3as-linux: binary port of SVR3 (SysV Release 3) and SunOS 4 assembler and linker to Linux
 
 pts-svr3as-linux contains binary ports of multiple versions of the SVR3
-(SysV Release 3, AT&T Unix System V Release 3) and SunOS (4.01 and 4.02)
+(SysV Release 3, AT&T Unix System V Release 3) and SunOS (4.0.1 and 4.0.2)
 assembler and linker to Linux. The resulting ELF-32 program files run on
 Linux i386 and Linux amd64 without emulation, and generate SVR3 COFF i386
 object and executable files. The pts-svr3as-linux repository doesn't contain
@@ -14,8 +14,8 @@ Patches are provided for the following versions:
 * SVR3 1987-10-28: assembler ported, linker not ported
 * SVR3 1988-05-27: assembler ported, linker not ported
 * SVR3 1989-10-03: assembler ported, linker not ported
-* SunOS 4.01 1988-11-16: assembler not ported, linker not ported
-* SunOS 4.02 1989-07-17: assembler same as in SunOS 4.01, linker not ported
+* SunOS 4.0.1 1988-11-16: assembler not ported, linker not ported
+* SunOS 4.0.2 1989-07-17: assembler same as in SunOS 4.0.1, linker not ported
 
 ## Building it
 
@@ -152,7 +152,7 @@ The SunOS 4.0.1 i386 assembler (`sunos4as-*`) seems to be based on SVR3
   C compiler, linked statically against SunOS 4.0 libm (based on 4.3BSD, not
   SVR3), linked dynamically against SunOS 4.0 libc (based on 4.3BSD, not
   SVR3).
-* Oddly enough, SunOS 4.01 (and 4.3BSD) libc *stdio.h* defines *P_tmpdir* to
+* Oddly enough, SunOS 4.0.1 (and 4.3BSD) libc *stdio.h* defines *P_tmpdir* to
   `"/usr/tmp"`, but the assembler uses `"/tmp"`.
 * Some more changes.
 
@@ -180,7 +180,7 @@ Assemblers using the AT&T i386 syntax:
 
 * the SVR3 assembler (earliest remaining file date 1987-10-28)
 * the SVR4 assembler (earliest remaining file date 1990-04-19)
-* thue SunOS 4.01 assembler (earliest remaining file date 1988-11-16),
+* thue SunOS 4.0.1 assembler (earliest remaining file date 1988-11-16),
   based on the SVR3 assembler from 1987
 * GNU Assembler (released for i386 in about 1990), now part of GNU Binutils,
   still in active development in 2024
