@@ -38,7 +38,7 @@ define.xbin 'sunos4as-1988-11-16.svr3'
 %else
   define.xtext 0x00b59a, 0x0d1074, 0x000074
 %endif
-define.xdata 0x00842f-0x1b8, 0x0111b7, 0x0101b7, 0xb2ca0-0x1b7  ; Size of .data: 0x842f Orirignal size of .data+.bss: 0xa1ca0
+define.xdata 0x00842e-0x1bb, 0x0111bb, 0x0101bb, 0xb2ca0-0x1bb  ; Size of .data: 0x842f Orirignal size of .data+.bss: 0xa1ca0
 opt.o0  ; Make NASM compilation faster. For this file the output is the same
 
 filenames_0 requ 0x19e34
@@ -1008,6 +1008,10 @@ section .xtext
     call mini_sprintf
   incbin_until 0x0d7034
     aspass1:
+    incbin_until 0x0d703a
+    jmp strict short .after_passnbr  ; Previously it was `mov word [passnbr], 1', but the zero is fine for us.
+    xfill_until 0x0d7043, nop  ; Gap.
+    .after_passnbr:
     incbin_until 0x0d7047
     call mini_bsd_signal
     incbin_until 0x0d7053
@@ -1036,8 +1040,18 @@ section .xtext
     call mini_strlen
   incbin_until 0x0d71ff
     lookup:
-  incbin_until 0x0d72a5
+    incbin_until 0x0d72a5
     call mini_strcmp
+    incbin_until 0x0d72b1
+    cmp byte [passnbr_minus_1], 0
+    jmp strict short .after_passnbr1  ; Previously it was `mov word [passnbr], 2'.
+    xfill_until 0x0d72bd, nop  ; Gap.
+    .after_passnbr1:
+    incbin_until 0x0d7312
+    cmp byte [passnbr_minus_1], 1
+    jmp strict short .after_passnbr2  ; Previously it was `mov word [passnbr], 2'.
+    xfill_until 0x0d731e, nop  ; Gap.
+    .after_passnbr2:
   incbin_until 0x0d73e7
     call mini_strlen
   incbin_until 0x0d7414
@@ -1640,6 +1654,11 @@ section .xtext
     .after:
   incbin_until 0x0d94b4
     aspass2:
+    incbin_until 0x0d94c2
+    inc byte [passnbr_minus_1]  ; Change from 0 to 1.
+    jmp strict short .after_passnbr  ; Previously it was `mov word [passnbr], 2'.
+    xfill_until 0x0d94cb, nop  ; Gap.
+    .after_passnbr:
     incbin_until 0x0d955c
     call mini_fopen
     incbin_until 0x0d9573
@@ -2414,13 +2433,13 @@ section .xtext
     xfill_until s.xtext.vstart+s.xtext.fsize
 
 section .xdata
-  assert_addr 0x111b7  ; Gap between 0x11000 and 0x111b7.
-  assert_addr 0x110ad+0x104+6
+  assert_addr 0x111bb  ; Gap between 0x11000 and 0x111b7.
+  assert_addr 0x110ad+0x108+6
   str_tmp:	db '/tmp', 0  ; P_tmpdir, Linux-specific.
   str_tmpdir:	db 'TMPDIR', 0
-  assert_addr 0x110bf+0x104
+  assert_addr 0x110bf+0x108
   nan_inf_str: db 5, 'nan', 0, 10, 'infinity', 0, 5, 'inf', 0, 0  ; For mini_strtod(...).
-  assert_addr 0x110d4+0x104
+  assert_addr 0x110d4+0x108
   mini_stderr_struct:  ; Layout must match `struct _SMS_FILE' in stdio_medium_*.nasm and c_stdio_medium.c.
   _iob_stderr:
 	.buf_write_ptr	dd stderr_buf
@@ -2433,8 +2452,7 @@ section .xdata
 	.buf_start	dd stderr_buf
 	.buf_capacity_end dd stderr_buf.end
 	.buf_off	dd 0
-  assert_addr 0x111fc  ; Original .xdata starts here.
-  passnbr:  ; !! Move it to original .xbss, save 4 bytes.
+  assert_addr 0x11200  ; Original .xdata starts here.
   r 0x11210+2, 0x11210+2
   incbin_until 0x1128f  ; Gap of 5 bytes. Previously it was "/tmp".
     fill_until 0x11294
@@ -2470,7 +2488,7 @@ section .xbss
   STRUCT_FILE_COUNT equ 17  ; 17 files opened by fopen(...) are enough, including the temporary files.
   assert_addr 0x1942e  ; First half of libc .xbss.
     resb 1  ; Terminating NUL for the '.ef' string at the end of original .xdata.
-    resb 1  ; Gap of 1 byte. sAlign to multiple of 4.
+    passnbr_minus_1: resb 1  ; Gap of 1 byte. sAlign to multiple of 4.
     mini___M_global_files: resb STRUCT_FILE_COUNT*0x24  ; 0x24 is sizeof(struct SMS_FILE).
     .end:
     stderr_buf: resb 0x400  ; Match glibc 2.19 stderr buffer size on a TTY.
