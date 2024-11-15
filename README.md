@@ -2,7 +2,7 @@
 
 pts-svr3as-linux contains binary ports of multiple versions of the SVR3
 (SysV Release 3, AT&T Unix System V Release 3) and SunOS (4.0.1 and 4.0.2)
-assembler and linker to Linux. The resulting ELF-32 program files run on
+assemblers and linkers to Linux. The resulting ELF-32 program files run on
 Linux i386 and Linux amd64 without emulation, and generate SVR3 COFF i386
 object and executable files. The pts-svr3as-linux repository doesn't contain
 any (copyrighted) code from AT&T: you have to provide the SVR3 i386
@@ -26,7 +26,8 @@ Step-by-step instructions:
    Linux distribution and the libc don't matter, everything is
    self-contained (and statically linked) in pts-svr3as-linux.
 
-1. Check out the pts-svr3as-linux Git repository.
+1. Check out the [pts-svr3as-linux](https://github.com/pts/pts-svr3as-linux)
+   Git repository.
 
 2. Obtain some of the the original assembler and linker binaries, and save
    them under the following names within the pts-svr3as-linux working tree
@@ -99,7 +100,7 @@ systems have *m4* installed.
 
 The SVR3 assemblers (`svr3as-*`) have the following features:
 
-* COFF i386 object file output format.
+* [COFF i386](https://wiki.osdev.org/COFF) object file output format. These are more similar to the DJGPP variant rather than the Win32 variant, so modern tools such as GNU ld(1) and OpenWatcom wlink(1) don't work with them until the object file is converted. (pts-svr3as-linux doesn't provide such a converter.)
 * No 486, Pentium etc. instructions or features, only 386.
 * Instructions: aaa, aad, aam, aas, adc, adcb, adcl, adcw, add, addb, addl, addr16, addw, and, andb, andl, andw, bound, boundl, boundw, bsfl, bsfw, bsrl, bsrw, btcl, btcw, btl, btrl, btrw, btsl, btsw, btw, call, cbtw, clc, cld, cli, clr, clrb, clrl, clrw, cltd, cmc, cmp, cmpb, cmpl, cmps, cmpsb, cmpsl, cmpsw, cmpw, cwtd, cwtl, daa, das, data16, dec, decb, decl, decw, div, divb, divl, divw, enter, esc, hlt, idiv, idivb, idivl, idivw, imul, imulb, imull, imulw, in, inb, inc, incb, incl, incw, inl, ins, insb, insl, insw, int, into, inw, iret, ja, jae, jb, jbe, jc, jcxz, je, jg, jge, jl, jle, jmp, jna, jnae, jnb, jnbe, jnc, jne, jng, jnge, jnl, jnle, jno, jnp, jns, jnz, jo, jp, jpe, jpo, js, jz, lahf, lcall, lds, ldsl, ldsw, lea, leal, leave, leaw, les, lesl, lesw, lfs, lfsl, lfsw, lgs, lgsl, lgsw, ljmp, lock, lods, lodsb, lodsl, lodsw, loop, loope, loopne, loopnz, loopz, lret, lss, lssl, lssw, mov, movb, movl, movs, movsb, movsbl, movsbw, movsl, movsw, movswl, movw, movzbl, movzbw, movzwl, mul, mulb, mull, mulw, neg, negb, negl, negw, nop, not, notb, notl, notw, or, orb, orl, orw, out, outb, outl, outs, outsb, outsl, outsw, outw, pop, popa, popal, popaw, popf, popfl, popfw, popl, popw, push, pusha, pushal, pushaw, pushf, pushfl, pushfw, pushl, pushw, rcl, rclb, rcll, rclw, rcr, rcrb, rcrl, rcrw, rep, repnz, repz, ret, rol, rolb, roll, rolw, ror, rorb, rorl, rorw, sahf, sal, salb, sall, salw, sar, sarb, sarl, sarw, sbb, sbbb, sbbl, sbbw, scab, scal, scas, scasb, scasl, scasw, scaw, scmp, scmpb, scmpl, scmpw, seta, setae, setb, setbe, setc, sete, setg, setge, setl, setle, setna, setnae, setnb, setnbe, setnc, setne, setng, setnge, setnl, setnle, setno, setnp, setns, setnz, seto, setp, setpe, setpo, sets, setz, shl, shlb, shldl, shldw, shll, shlw, shr, shrb, shrdl, shrdw, shrl, shrw, slod, slodb, slodl, slodw, smov, smovb, smovl, smovw, ssca, sscab, sscal, sscaw, ssto, sstob, sstol, sstow, stc, std, sti, stos, stosb, stosl, stosw, sub, subb, subl, subw, test, testb, testl, testw, wait, xchg, xchgb, xchgl, xchgw, xlat, xor, xorb, xorl, xorw.
 * Protected mode instructions: arpl, clts, lar, lgdt, lidt, lldt, lmsw, lsl, ltr, sgdt, sidt, sldt, smsw, str, verr, verw.
@@ -122,6 +123,12 @@ Additions by the Linux i386 ports:
 
 * The `-dt` command-line flag to force the timestamp in the COFF output file
   to 0, for reproducible builds.
+* The `-dg` command-line flag to omit the `-lg` symbol from the COFF output
+  file. This makes the output of the SunOS assembler more similar to the
+  SVR3 assemblers.
+* The `-dv` command-line flag make the `.version` directive not append the
+  string to the .comment section. This makes the output of the SunOS
+  assembler more similar to the SVR3 assemblers.
 
 The SunOS 4.0.1 i386 assembler (`sunos4as-*`) seems to be based on SVR3
 1987-10-28 or later (up to 1987-12-15), and it has the following changes:
@@ -134,7 +141,7 @@ The SunOS 4.0.1 i386 assembler (`sunos4as-*`) seems to be based on SVR3
   flag, configure it with `-Y`) has been removed.
 * Adds an absolute symbol named `-lg` unconditionally.
 * Added the `-i386` command-line flag, ignored.
-* Added the `-k' flag for generation of position-independent code.
+* Added the `-k` flag for generation of position-independent code.
 * Changed the meaning of the `-R` flag: in SVR3 it causes the input .s file
   to be deleted (removed) on success, in SunOS it makes the .data section
   read-only and merges it into .text.
@@ -151,14 +158,37 @@ The SunOS 4.0.1 i386 assembler (`sunos4as-*`) seems to be based on SVR3
 * The entire tables (*symtab* and *hashtab*) are preallocated, it's not many
   smaller dynamic allocations anymore.
 * It has version info *SunOS 4.0/RoadRunner BETA1 -- 12/15/87*.
-* The build process: the source code of the SVR3 assembler has been used as
-  a base, changed (see some of the changes above), compiled with a different
-  C compiler, linked statically against SunOS 4.0 libm (based on 4.3BSD, not
-  SVR3), linked dynamically against SunOS 4.0 libc (based on 4.3BSD, not
-  SVR3).
+* The original build process: the source code of the SVR3 assembler has been
+  used as a base, changed (see some of the changes above), compiled with a
+  different C compiler, linked statically against SunOS 4.0 libm (based on
+  4.3BSD, not SVR3), linked dynamically against SunOS 4.0 libc (based on
+  4.3BSD, not SVR3).
 * Oddly enough, SunOS 4.0.1 (and 4.3BSD) libc *stdio.h* defines *P_tmpdir* to
   `"/usr/tmp"`, but the assembler uses `"/tmp"`.
 * Some more changes.
+
+## Linux compatibility notes
+
+* The Linux distribution and the libc don't matter, everything is
+  self-contained (and statically linked) in pts-svr3as-linux.
+* Linux i386 and Linux amd64 systems are able to run Linux i386 ELF-32
+  executables. Linux 1.0 already has ELF-32 support.
+* The 4 assemblers in pts-svr3as-linux have been tested and working on:
+  Linux 5.4.0 amd64, Linux 1.0.4 i386 (Linux distribution
+  [MCC-1.0](https://www.ibiblio.org/pub/historic-linux/distributions/MCC-1.0/1.0/)
+  released on 1994-05-11, kernel released on 1994-03-22) and qemu-i386
+  2.11.1 running on Linux amd64.
+* For each run, the assemblers create 13 temporary files (in `$TMPDR`, which
+  is `/tmp/` by default). They clean up when they finish (even at failure
+  and at SIGINT).
+* The 3 SVR3 assemblers were already statically linked. As part of porting,
+  the SVR3 system calls (syscalls) were replaced with an emulation based on
+  Linux i386 system calls.
+* The SunOS 4.0.1 assembler was dynamically linked against SunOS libc.so. As
+  part of porting, replacement functions were provided from libc functions
+  (including printf(3) etc.), from
+  [minilibc686](https://github.com/pts/minilibc686). These are the functions
+  in sunos4as-1988-11-16.nasm whose name starts with `mini_`.
 
 ## Why is the SVR3 assembler significant?
 
