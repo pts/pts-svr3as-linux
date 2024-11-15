@@ -5,26 +5,33 @@
 ; Compile with: nasm -w+orphan-labels -f bin -O0 -o sunos4as-1988-11-16 sunos4as-1988-11-16.nasm && chmod +x sunos4as-1988-11-16
 ; Run on Linux (creating test.o of COFF format): ./sunos4as-1988-11-16: test.s && cmp -l test.o.good test.o
 ;
-; This program runs natively on Linux i386 and Linux amd64 systems, even
-; those which have `sysctl -w vm.mmap_min_addr=65536' (like many Linux
-; distributions in 2018). (For that, the 2nd argument of define.xtext must
-; be at least 0x10000). This program also runs using qemu-i386 on Linux (any
-; architecture).
+; This program runs natively on Linux i386 and Linux amd64 systems, starting
+; with Linux >=1.0, even those which have `sysctl -w vm.mmap_min_addr=65536'
+; (like many Linux distributions in 2018). (For that, the 2nd argument of
+; define.xtext must be at least 0x10000). This program also runs using
+; qemu-i386 on Linux (any architecture).
+;
+; This program has been tested and working on: Linux 5.4.0 amd64 and
+; Linux 1.0.4 i386 (kernel released on 1994-03-22).
 ;
 ; This program creates (and removes) up to 15 temporary files (in `$TMPDIR'
 ; or `/tmp') during normal operation.
 ;
-; !! Check .xtext and .xdata padding (&x0xfff) in the final program, maybe we can save 0xfff bytes.
+; There is no need to make the virtual memory gap between .xbss and .text
+; smaller (now the gap is 0x0c4000..0x0d1000); this would affect
+; relocations.
+;
+; !! Make ferror_rp3zz report previous read and write errorr.
+; !! Are we sure that read-write opened files are not needed (i.e. because of backward seeks)?
 ; !! Make unknown flags an error rather than a warning. Fix it in all 3 .nasm sources.
 ; !! "trouble writing; probably out of temp-file space" appears multiple times; deduplicate all strings.
-; !! Add opt.xdata.first to match section order in sunos4as-1988-11-16.elf.
 ; !! Fix infinite loop when the input .s file doesn't end with a newline. Is it a libc bug or are the two others also buggy?
 ; !! Fix error line numbers. SVR3 assembler is also broken.
-; !! Make the virtual memory gap between .xbss and .text smaller (now the gap is 0x0c4000..0x0d1000); this affects relocations.
 ;
 
 %include 'binpatch.inc.nasm'
-%define p.rw.vsize.in.phdr1 ((s.xdata.fsize+0xfff)&~0xfff)  ; Override p.rw.vsize with p.rw.fsize, to pacify the Linux kernel. Only works with __OUTPUT_FORMAT__==bin.
+%define p.rw.vsize.in.phdr ((s.xdata.fsize+0xfff)&~0xfff)  ; Override p.rw.vsize with p.rw.fsize, to pacify the Linux kernel. Only works with __OUTPUT_FORMAT__==bin.
+%define p.rw.first  ; Makes this executable program file smaller because of page size modulo.
 
 ; `objdump -x' output (Size mostly incorrect):
 ; Idx Name          Size      VMA       File off  Algn
@@ -35,11 +42,15 @@
 
 define.xbin 'sunos4as-1988-11-16.svr3'
 %ifdef USE_DEBUG
-  define.xtext 0x00bab8+0x4d4, 0x0d1074, 0x000074
+  define.xtext 0x00bab8+0x11a, 0x0d142e, 0x00042e
+  %if (s.xtext.vstart+s.xtext.fsize)&0xfff
+    %error END_OF_DEBUG_XTEXT_NOT_PAGE_ALIGNED
+    __had_error
+  %endif
 %else
-  define.xtext 0x00b59a, 0x0d1074, 0x000074
+  define.xtext 0x00b5a9, 0x0d142e, 0x00042e
 %endif
-define.xdata 0x00842e-0x1bb, 0x0111bb, 0x0101bb, 0xb2ca0-0x1bb  ; Size of .data: 0x842f Orirignal size of .data+.bss: 0xa1ca0
+define.xdata 0x00842e-0x74, 0x011074, 0x010074, 0xb2ca0-0x74
 opt.o0  ; Make NASM compilation faster. For this file the output is the same
 
 filenames_0 requ 0x19e34
@@ -181,13 +192,15 @@ _IOERR equ 040q  ; SunoOS 4.01 and 4.3BSD stdio.h.
 %endm
 
 section .xtext
-  xfill_until 0x0d1074
     ; sunos4as-1988-11-16.svr3 links dynamically against SunOS libc.so,
     ; which we don't have, so we provide an alternative libc (and libm)
     ; implementation, based on https://github.com/pts/minilibc686 .
+
     global _start
     _start:  ; Linux i386 program entry point. Also libc trampoline.
-		; Allocate .bss manually, Linux 5.4.0 doesn't respect the memsz above. !! Add error to binpatch.inc.nasm.
+		clear.xbss.page0  ; Needed on Linux 1.0 because of p.rw.first.
+		; Fix the first page of .xbss.
+		; Allocate .bss manually, Linux 5.4.0 doesn't respect the memsz above. !! Add error to binpatch.inc.nasm if missing.
 		; void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset);  /* libc interface, we don't use this, because we don't have a libc. */
 		; void *sys_mmap(unsigned long *buffer);  /* We use this, for Linux 1.0 compatibility. */
 		; void *sys_mmap2(void *addr, size_t length, int prot, int flags, int fd, unsigned long offset_shr_12);  /* We don't use this. */
@@ -270,527 +283,39 @@ section .xtext
 		push strict byte SYS_unlink
 		jmp strict near simple_syscall3
 
-    ; Called from mini_exit(...). It flushes all files opened by mini_fopen(...).
-    mini___M_start_flush_opened:  ; void mini___M_start_flush_opened(void);
-		push ebx
-		mov ebx, mini___M_global_files
-      .next_file:
-		cmp ebx, mini___M_global_files.end
-		je .after_files
-		push ebx
-		call mini_fflush
-		pop eax  ; Clean up argument of mini_fflush.
-		add ebx, byte 0x24  ; sizeof(struct _SMS_FILE).
-		jmp short .next_file
-      .after_files:
-		pop ebx
-		ret
-
-    mini_fprintf:  ; int fprintf(FILE *stream, const char *format, ...);
-		push esp  ; 1 byte.
-		add dword [esp], strict byte 3*4  ; 4 bytes.
-		push dword [esp+3*4]  ; 4 bytes.
-		push dword [esp+3*4]  ; 4 bytes.
-		call mini_vfprintf  ; 5 bytes.
-		add esp, strict byte 3*4  ; 3 bytes, same as `times 3 pop edx'.
-		ret  ; 1 byte.
-
-    mini_sprintf:  ; int mini_sprintf(char *str, const char *format, ...);
-		lea edx, [esp+0xc]  ; Argument `...'.
-		mov eax, edx  ; Smart linking could eliminate this (and use EDX instead) if mini_vsprintf(...) wasn't in use.
-      mini_sprintf.do:  ; mini_vsprintf(...) jumps here.
-		; It matches struct _SMS_FILE defined in c_stdio_medium.c. sizeof(struct _SMS_FILE).
-		push byte 0  ; .buf_off.
-		push byte -1  ; .buf_capacity_end.
-		push dword [edx-8]  ; .buf_start == str argument.
-		push byte 7  ; .dire == FD_WRITE_SATURATE. Also push the 3 .padding bytes.
-		push byte -1  ; .fd.
-		push byte 0  ; .buf_last.
-		push byte 0  ; .buf_read_ptr.
-		push byte -1  ; .buf_end: practically unlimited buffer.
-		push dword [edx-8]  ; .buf_write_ptr == str argument.
-		; int mini_vfprintf(FILE *filep, const char *format, va_list ap);
-		mov ecx, esp  ; Address of newly created struct _SMS_FILE on stack.
-		push eax  ; Argument ap of mini_vfprintf(...).
-		push dword [edx-4]  ; Argument format of mini_vfprintf(...).
-		push ecx  ; Argument filep of mini_vfprintf(...). Address of newly created struct _SMS_FILE on stack.
-		call mini_vfprintf
-		mov edx, [esp+3*4]  ; .buf_write_ptr.
-		mov byte [edx], 0  ; Add '\0'. It's OK to omit the `EDX == NULL' check here, uClibc and EGLIBC also omit it.
-		add esp, byte (3+9)*4  ; Clean up arguments of mini_vfprintf(...) and the struct _SMS_FILE from the stack.
-		ret
-
-    ; Limitation: It supports only format specifiers %s, %c, %u.
-    ; Limitation: It doesn't work as a backend of snprintf(...) and vsnprintf(...) because it doesn't support FD_WRITE_SATURATE.
-    ; Limitation: It doesn't return the number of bytes printed, it doesn't indicate error.
-    mini_vfprintf:  ; void mini_vfprintf_simple(FILE *filep, const char *format, va_list ap);
+    mini_malloc_simple_grow_with_mmap_RP3X:  ; void *mini_malloc_simple_grow_with_mmap_RP3(void *new_end, void *base) __attribute__((__regparm__(3)++));
+      ; Input: EAX: new_end, EDX: base == `dword [_malloc_simple_base]'. Also input: 4 pushes and `sub eax, edx'.
+      ; May ruin EDX (and ECX).
+      ; We don't use SYS_brk (with shorter code) because qemu-i386 2.11.1 SYS_brk can't handle our unusual .xbss-then-.xtext virtual memory order.
+      ; As a side effect, not using SYS_brk makes memory addresses deterministic (such as by disabling virtual address randomization with `setarch i386 -R CMD').
+		; The caller does these:
+		; push strict byte 0  ; offset.
+		; push strict byte -1 ; fd.
+		; push strict byte MAP.PRIVATE|MAP.ANONYMOUS|MAP.FIXED  ; flags.
+		; push strict byte PROT.READ|PROT.WRITE  ; prot.
+		; sub eax, edx
+		; push eax  ; length.
+		; push edx  ; addr.
+		; mov edx, esp  ; buffer, to be passed to sys_mmap(...).
 		push ebx  ; Save.
-		push esi  ; Save.
-		push edi  ; Save.
-		sub esp, strict byte 12  ; Scratch buffer for %u.
-		push strict byte 10  ; Divisor `div' below.
-		mov eax, [esp+8*4]  ; filep.
-		call mini___M_writebuf_relax_RP1  ; mini___M_writebuf_relax_RP1(filep); Subsequent bytes written will be buffered until mini___M_writebuf_relax_RP1 below.
-		mov esi, [esp+9*4]  ; format.
-		mov edi, [esp+10*4]  ; ap.
-      .next_fmt_char:
-		lodsb
-		cmp al, '%'
-		je strict short .specifier
-		cmp al, 0
-		je strict short .done
-      .write_char:
-		call .call_mini_putc
-		jmp strict .next_fmt_char
-      .done:	mov eax, [esp+8*4]  ; filep.
-		call mini___M_writebuf_unrelax_RP1  ; mini___M_writebuf_unrelax_RP1(filep);
-		add esp, strict byte 16
-		pop edi  ; Restore.
-		pop esi  ; Restore.
-		pop ebx  ; Restore.
-		ret
-      .specifier:
-		lodsb
-		cmp al, 's'
-		je strict short .specifier_s
-		cmp al, 'u'
-		je strict short .specifier_u
-		cmp al, 'c'
-		jne strict short .write_char
-		; Fall through.
-      .specifier_c:
-		mov al, [edi]
-		add edi, strict byte 4
-		jmp strict short .write_char
-      .specifier_s:
-		mov ebx, [edi]  ; EDI := start of NUL-terminated string.
-		;test ebx, ebx
-		;jz strict short .done_str  ; Don't crash on printing NULL. Not needed.
-      .next_str_char:
-		mov al, [ebx]
-		inc ebx
-		cmp al, 0
-		je strict short .done_str
-		call .call_mini_putc
-		jmp strict short .next_str_char
-      .done_str:
-		add edi, strict byte 4
-		jmp strict short .next_fmt_char
-      .specifier_u:
-		lea ebx, [esp+4+12-1]  ; Last byte of the scratch buffer for %u.
-		mov byte [ebx], 0  ; Trailing NUL.
-		mov eax, [edi]
-      .next_digit:
-		xor edx, edx  ; Set high dword of the dividend. Low dword is in EAX.
-		div dword [esp]  ; Divide by 10.
-		add dl, '0'
-		dec ebx
-		mov [ebx], dl
-		test eax, eax  ; Put next digit to the scratch buffer.
-		jnz strict short .next_digit
-		jmp strict short .next_str_char
-      .call_mini_putc:  ; Input: AL contains the byte to be printed. Can use EAX, EDX and ECX as scratch. Output: byte is written to the buffer.
-		mov edx, [esp+8*4+4]  ; filep. (`4+' because of the return pointer of .call_mini_putc.)  AL contains the byte to be printed, the high 24 bits of EAX is garbage here.
-		; Now we do inlined putc(c, filep). Memory layout must match <stdio.h> and c_stdio_medium.c.
-		; int putc(int c, FILE *filep) { return (((char**)filep)[0]/*->buf_write_ptr*/ == ((char**)filep)[1]/*->buf_end*/) || (_STDIO_SUPPORTS_LINE_BUFFERING && (unsigned char)c == '\n') ? mini_fputc_RP3(c, filep) : (unsigned char)(*((char**)filep)[0]/*->buf_write_ptr*/++ = c); }
-		mov ecx, [edx]  ; ECX := buf_write_ptr.
-		cmp ecx, [edx+4]  ; buf_end.
-		je short .call_mini_fputc
-		cmp al, 10  ; '\n'.
-		je short .call_mini_fputc  ; In case filep == stdout and it's line buffered (_IOLBF).
-		mov [ecx], al  ; *buf_write_ptr := AL.
-		inc dword [edx]  ; buf_write_ptr += 1.
-		ret
-      .call_mini_fputc:
-		; movsx eax, al : Not needed, mini_fputc ignores the high 24 bits anyway.
-		;jmp strict near mini_fputc_RP3  ; With extra smart linking, we could hardcore an EOF (-1) return if only mini_snprintf(...) etc., bur no mini_fprintf(...) etc. is used.
-		; Fall through to mini_fputc_RP3.
-    mini_fputc_RP3:  ; int mini_fputc_RP3(int c, FILE *filep) __attribute__((__regparm__(3)));
-		push ebx  ; Save EBX.
 		mov ebx, edx
-		movzx eax, al  ; Local variable uc will become argument c.
-		push eax  ; Make room for local variable uc on the stack and set the lower 8 bits to c and the higher bits to junk.
-		mov eax, [edx+0x4]  ; `dword [edx]' is `buf_write_ptr', `dword [edx+4]' is .buf_end.
-		cmp [edx], eax
-		jne .16
-		push edx
-		call mini_fflush
-		pop edx
-		test eax, eax
-		jnz .err
-		mov eax, [ebx+0x4]
-		cmp [ebx], eax
-		jne .16
-		mov eax, esp  ; Address of local variable uc.
-		push byte 1
-		push eax
-		push dword [ebx+0x10]
-		call mini_write
-		add esp, byte 0xc
-		dec eax
-		jnz .err
-		jmp short .done
-      .16:	mov edx, [ebx]
-		inc edx
-		mov [ebx], edx  ; ++filep->buf_write_ptr++;
-		dec edx
-		pop eax  ; Local variable uc.
-		push eax
-		mov [edx], al
-		cmp al, 0xa  ; Local variable uc.
-		jne .done
-		cmp byte [ebx+0x14], 0x6  ; FD_WRITE_LINEBUF.
-		jne .done
-		push ebx
-		call mini_fflush
-		pop edx  ; Clean up the argument of mini_fflush from the stack. The pop register can be any of: EBX, ECX, EDX, ESI, EDI, EBP.
-		test eax,  eax
-		jz .done
-      .err:	pop eax
-		push byte -1  ; Return value := -1.
-      .done:	pop eax  ; Remove zero-extended local variable uc from the stack, and use it as return value.
-		pop ebx  ; Restore EBX.
-		ret
-
-    mini___M_writebuf_relax_RP1:
-		cmp byte [eax+0x14], 4  ; FD_WRITE.
-		jne .ret
-		mov edx, [eax+0x1c]
-		mov ecx, [eax+0x4]
-		cmp edx, ecx
-		jbe .ret
-		inc byte [eax+0x14]  ; FD_WRITE_RELAXED.
-		mov [eax+0x1c], ecx
-		mov [eax+0x4], edx
-      .ret:	ret
-
-    mini___M_writebuf_unrelax_RP1:
-		cmp byte [eax+0x14], 5  ; FD_WRITE_RELAXED.
-		jne .done
-		push ebx
-		mov ebx, eax
-		push eax
-		call mini_fflush
-		mov edx, [ebx+0x1c]
-		mov ecx, [ebx+0x4]
-		dec byte [ebx+0x14]  ; FD_WRITE.
-		mov [ebx+0x4], edx
-		mov [ebx+0x1c], ecx
-		pop edx
-		pop ebx
-		ret
-      .done:	xor eax, eax
-		ret
-
-    mini_fflush:  ; int mini_fflush(FILE *filep);
-		push esi
-		or ecx, byte -0x1
-		push ebx
-		mov ebx, [esp+0xc]
-		cmp byte [ebx+0x14], 0x3
-		jbe .4
-		mov esi, [ebx+0x18]
-      .6:	mov eax, [ebx]
-		cmp eax, esi
-		je .13
-		sub eax, esi
-		push eax
-		push esi
-		push dword [ebx+0x10]
-		call mini_write
-		add esp, byte 0xc
-		lea edx, [eax+0x1]
-		cmp edx, byte 0x1
-		jbe .10
-		add esi, eax
-		jmp short .6
-      .13:	xor ecx, ecx
-		jmp short .7
-      .10:	or ecx, byte -0x1
-      .7:	sub esi, [ebx+0x18]
-		add [ebx+0x20], esi
-		push ebx  ; filep.
-		call mini___M_discard_buf
-		pop eax  ; Clean up argument filep of mini___M_discard_buf(...) from the stack.
-      .4:	pop ebx
-		mov eax, ecx
-		pop esi
-		ret
-
-    mini___M_discard_buf:  ; void mini___M_discard_buf(FILE *filep);
-		mov eax, [esp+0x4]
-		mov edx, [eax+0x18]
-		mov [eax+0xc], edx
-		mov [eax], edx
-		mov [eax+0x8], edx
-		mov dl, [eax+0x14]
-		dec edx  ; DL -= 1; higher bits of EDX := junk.
-		cmp dl, 0x2
-		ja .ret
-		mov edx, [eax+0x4]
-		mov [eax], edx
-      .ret:	ret
-
-    mini_bsd_signal:  ; sighandler_t mini_bsd_signal(int signum, sighandler_t handler);
-		; SYS_signal doesn't work in qemu-i386 on Linux (it doesn't support
-		; SYS_signal), and SYSV signals also has race conditions: if the signal
-		; quickly hits again while handler is running and it hasn't
-		; reestablished itself, then the signal can kill the process.
-		;
-		; We solve both of these problems by using sigaction(2) with BSD signal
-		; semantics.
-		;
-		;push strict byte SYS_signal
-		;jmp strict near simple_syscall3
-		enter 0x20, 0  ; 0x20 == 2 * 0x10: first act at &[ebp-0x20], then oldact at &[ebp-0x10].
-		mov eax, [ebp+0xc]
-		mov [ebp-0x20+0*4], eax  ; handler.
-		mov dword [ebp-0x20+2*4], Linux_SA_RESTART  ; sa_flags.
-		xor eax, eax
-		mov [ebp-0x20+1*4], eax  ; act.sa_mask.sig[0] := 0. sizeof(sa_mask) is always 4 for Linux i386 SYS_sigaction.
-		lea eax, [ebp-0x10]  ; Argument oldact of SYS_sigaction.
-		push eax
-		lea eax, [ebp-0x20]
-		push eax  ; Argument act of SYS_sigaction.
-		push dword [ebp+0x8]  ; Argument sig of SYS_sigaction.
-		push strict byte SYS_sigaction
+		push strict byte SYS_mmap
 		pop eax
-		call simple_syscall3.in_eax
-		; We don't bother popping arguments from the stack, `leave' below will
-		; do it for us.
-		test eax, eax
-		jnz .done  ; EAX == SIG_ERR == -1.
-		mov eax, [ebp-0x10]  ; Old handler.
-      .done:	leave
-		ret
-
-    mini_isatty:  ; int mini_isatty(int fd);
-		push ebx
-		sub esp, strict byte 0x24
-		push strict byte SYS_ioctl
-		pop eax
-		mov ebx, [esp+0x24+4+4]  ; fd argument of ioctl.
-		mov ecx, Linux_TCGETS
-		mov edx, esp  ; 3rd argument of ioctl Linux_TCGETS.
 		li3_syscall
-		add esp, strict byte 0x24  ; Clean up everything pushed.
-		pop ebx
-		; Now convert result EAX: 0 to 1, everything else to 0.
-		cmp eax, strict byte 1
-		sbb eax, eax
-		neg eax
-		ret
-
-    mini_strtod:  ; double mini_strtod(const char *str, char **endptr);
-      %define STRTOD_VAR_TMP_DIGIT 0  ; 4 bytes.
-      %define STRTOD_VAR_F32_10 4  ; 4 bytes f32.
-      ;%define STRTOD_VARS_SIZE 8
-      ; esp+9 is pushed EBP.
-      ; esp+0xc is pushed EDI.
-      ; esp+0x10 is pushed ESI.
-      ; esp+0x14 is pushed EBX.
-      ; esp+0x18 is the return address.
-      %define STRTOD_ARG_STR 0x1c  ; 4 bytes char*.
-      %define STRTOD_ARG_ENDPTR 0x20  ; 4 bytes char**.
-      STRTOD_F32_10 equ 0x41200000  ; (f32)10.0.
-      STRTOD_DECIMAL_DIG equ 21
-      STRTOD_MAX_ALLOWED_EXP equ 4973
-		push ebx
-		push esi
-		push edi
-		push ebp
-		push dword STRTOD_F32_10
-		push ebp  ; Just a shorter `sub esp, byte 4'.
-		mov ebx, [esp+STRTOD_ARG_STR]
-      .1:	mov al, [ebx]
-		cmp al, ' '
-		je .2
-		mov ah, al
-		sub ah, 9  ; "\t".
-		cmp ah, 4  ; ord("\r")-ord("\t").
-		ja .3
-      .2:	inc ebx
-		jmp short .1
-      .3:	xor ebp, ebp
-		cmp al, '-'
-		je .4
-		cmp al, '+'
-		je .5
-		jmp short .6
-      .4:	inc ebp  ; ++pos;
-      .5:	inc ebx
-      .6:	or eax, byte -1  ; num_digits = -1;
-		xor edi, edi
-		xor esi, esi
-		fldz  ; number = 0;  `number' will be kept in ST0 for most of this function.
-		xor edx, edx  ; Clear high 24 bits, for the `mov [esp+STRTOD_VAR_TMP_DIGIT], edx' below.
-      .loop7:	mov dl, [ebx]
-		sub dl, '0'
-		cmp dl, 9
-		ja .after_loop7
-		test eax, eax
-		jge .8
-		inc eax
-      .8:	test eax, eax
-		jnz .9
-		test dl, dl
-		jz .10
-      .9:	inc eax
-		cmp eax, byte STRTOD_DECIMAL_DIG
-		jg .10
-		mov [esp+STRTOD_VAR_TMP_DIGIT], edx
-		fmul dword [esp+STRTOD_VAR_F32_10]
-		fiadd dword [esp+STRTOD_VAR_TMP_DIGIT]
-      .10:	inc ebx
-		jmp short .loop7
-      .after_loop7:
-		cmp dl, '.'-'0'
-		jne .done_loop7
-		test esi, esi
-		jne .done_loop7
-		inc ebx
-		mov esi, ebx  ; pos0 = pos;
-		jmp short .loop7
-      .done_loop7:
-		test eax, eax
-		jge .18
-		test esi, esi
-		jne .17
-		; Now we use ESI for something else (i), with initial value already 0.
-		xor ecx, ecx  ; Keep high 24 bits 0, for ch and ecx below.
-		mov [esp+STRTOD_VAR_TMP_DIGIT], esi  ; 0.
-		mov esi, nan_inf_str
-      .loop13:	mov edx, ebx
-		mov eax, esi
-		lea eax, [esi+1]  ; Same size as `mov' + `inc'.
-      .14:	mov cl, [edx]
-		or cl, 0x20
-		cmp cl, [eax]
-		jne .16
-		inc edx
-		inc eax
-		cmp [eax], ch  ; Same as: cmp byte [eax], 0
-		jne .14
-		fstp st0  ; Pop `number' (originally in ST0) from the stack.
-		fild dword [esp+STRTOD_VAR_TMP_DIGIT]
-		fldz
-		fdivp st1, st0
-		test ebp, ebp
-		je .15
-		fchs  ; number = -number.
-      .15:	mov cl, [esi]
-		add ebx, ecx
-		dec ebx
-		dec ebx
-		jmp short .store_done
-      .16:	mov cl, [esi]
-		add esi, ecx
-		inc byte [esp+STRTOD_VAR_TMP_DIGIT]  ; Set it to anything positive.
-		cmp cl, ch
-		jne .loop13
-      .17:	mov ebx, [esp+STRTOD_ARG_STR]  ; pos = str;
-		jmp short .store_done
-      .18:	cmp eax, byte STRTOD_DECIMAL_DIG
-		jle .19
-		sub eax, byte STRTOD_DECIMAL_DIG
-		add edi, eax
-      .19:	test esi, esi
-		je .20
-		mov eax, esi
-		sub eax, ebx
-		add edi, eax
-      .20:	test ebp, ebp  ; if (negative);
-		je .21
-		fchs  ; number = -number;
-      .21:	mov al, [ebx]
-		or al, 0x20
-		cmp al, 'e'
-		jne .29
-		mov [esp+STRTOD_VAR_TMP_DIGIT], ebx  ; pos1 = pos;  ! Maybe push ebx/pop ebx? Only if we don't use other variables in the meantime.
-		xor esi, esi
-		inc esi  ; negative = 1;
-		inc ebx  ; Skip past the 'e'.
-		mov al, [ebx]
-		cmp al, '-'
-		je .22
-		cmp al, '+'
-		je .23
-		jmp short .24
-      .store_done:  ; ; We put this to the middle so that we don't need `jmp near'.  STRTOD_VAR_NUMBER is already populated.
-		mov eax, [esp+STRTOD_ARG_ENDPTR]  ; Argument endptr.
-		test eax, eax
-		je .36
-		mov [eax], ebx
-      .36:	fstp qword [esp]
-		fld qword [esp]  ; By doing this fstp+fld combo, we round the result to f64.
-		times 2 pop ebp  ; Just `add esp, byte STRTOD_VARS_SIZE'.
-		pop ebp
-		pop edi
-		pop esi
-		pop ebx
-		ret
-      .22:	neg esi  ; negative = -1;
-      .23:	inc ebx
-      .24:	mov ebp, ebx
-		xor eax, eax
-		xor edx, edx  ; Clear high 24 bits, for the `add eax, edx' below.
-      .loop25:	mov dl, [ebx]
-		sub dl, '0'
-		cmp dl, 9
-		ja .27
-		cmp eax, STRTOD_MAX_ALLOWED_EXP  ; if (exponent_temp < STRTOD_MAX_ALLOWED_EXP);
-		jge .26
-		imul eax, byte 10
-		add eax, edx
-      .26:	inc ebx
-		jmp short .loop25
-      .27:	cmp ebx, ebp
-		jne .28
-		mov ebx, [esp+STRTOD_VAR_TMP_DIGIT]  ; pos = pos1;
-      .28:	imul eax, esi
-		add edi, eax
-      .29:	fldz
-		fucomp st1  ; if (number == 0.);  True for +0.0 and -0.0.
-		fnstsw ax
-		sahf
-		je .store_done  ; if (number == 0.) goto DONE;
-		mov eax, edi
-		test eax, eax
-		jz .store_done
-		jge .skip_neg
-		neg eax  ; Exponent_temp = -exponent_temp;
-      .skip_neg:
-		fld dword [esp+STRTOD_VAR_F32_10]  ; p_base = 10.0, but with higher (f80) precision.
-      .loop31:	; Now: ST0 is p_base, ST1 is number.
-		test al, 1
-		jz .34
-		test edi, edi
-		jge .32
-		fdiv st1, st0  ; number /= p_base;
-		jmp short .34
-      .32:	fmul st1, st0  ; number *= p_base;
-      .34:	fmul st0, st0  ; p_base *= p_base;
-		shr eax, 1
-		jnz .loop31
-		; Now: ST0 is p_base, ST1 is number.
-		fstp st0  ; Pop p_base. `number' remains on the stack.
-		jmp short .store_done
-
-    better_getargs:
-		call getargs
-		cmp [filenames_0], strict byte 0
-		jne strict near after_better_getargs
-		jmp strict near fatal_usage
+		pop ebx  ; Restore.
+		;add esp, strict byte 6*4  ; Clean up `long buffer[6]' from the stack.
+		;ret  ; Propagate return value of SYS_mmap in EAX.
+		ret 6*4
 
     ;ferror_rp3zz:  ; Input: FILE *stream in EAX. Output: ZF=!ferror(stream). Ruins: some flags other than ZF, but no other registers.
-    ;		cmp eax, eax  ; ZF := 1 (no error). !! Add real implementation, do check errors.
+    ;		cmp eax, eax  ; ZF := 1 (no error).
     ;		ret
     ; Checks for ferror(stream).
     ; Input: FILE *stream in EAX. Output: ZF=!ferror(stream). Ruins: some flags other than ZF, but no other registers.
     ; We need to override the original code, because it has `#define ferror(...)' and our `struct _FILE' layout is different.
     %macro ferror_rp3zz_between 2
       incbin_until %1
-      cmp eax, eax  ; ZF := 1 (no error). !! Add real implementation, do check errors.
+      cmp eax, eax  ; ZF := 1 (no error). TODO(pts): Add real implementation, do check errors.
       jmp strict short %%after
       xfill_until %2, nop
       %%after:
@@ -829,31 +354,7 @@ section .xtext
       assert_addr (%1)+15
     %endm
 
-    mini_malloc_simple_grow_with_mmap_RP3X:  ; void *mini_malloc_simple_grow_with_mmap_RP3(void *new_end, void *base) __attribute__((__regparm__(3)++));
-      ; Input: EAX: new_end, EDX: base == `dword [_malloc_simple_base]'. Also input: 4 pushes and `sub eax, edx'.
-      ; May ruin EDX (and ECX).
-      ; We don't use SYS_brk (with shorter code) because qemu-i386 2.11.1 SYS_brk can't handle our unusual .xbss-then-.xtext virtual memory order.
-      ; As a side effect, not using SYS_brk makes memory addresses deterministic (such as by disabling virtual address randomization with `setarch i386 -R CMD').
-		; The caller does these:
-		; push strict byte 0  ; offset.
-		; push strict byte -1 ; fd.
-		; push strict byte MAP.PRIVATE|MAP.ANONYMOUS|MAP.FIXED  ; flags.
-		; push strict byte PROT.READ|PROT.WRITE  ; prot.
-		; sub eax, edx
-		; push eax  ; length.
-		; push edx  ; addr.
-		; mov edx, esp  ; buffer, to be passed to sys_mmap(...).
-		push ebx  ; Save.
-		mov ebx, edx
-		push strict byte SYS_mmap
-		pop eax
-		li3_syscall
-		pop ebx  ; Restore.
-		;add esp, strict byte 6*4  ; Clean up `long buffer[6]' from the stack.
-		;ret  ; Propagate return value of SYS_mmap in EAX.
-		ret 6*4
-
-  xfill_until 0x0d14d4  ; There is a gap of 4 bytes in front of this. Original code (first incbin_until) starts here.
+  xfill_until 0x0d14d4  ; There is a gap of 5 bytes in front of this. Original code (first incbin_until) starts here.
     getargs:
     incbin_until 0x0d154b
     call mini_strcmp
@@ -2128,7 +1629,519 @@ section .xtext
     assert_addr 0x0dc2fb  ; No gap, it fits tightly.
   incbin_until 0x0dc31e
     call mini_strncmp
-  incbin_until 0x0dc344  ; Original useful code in sunos4as-1988-11-16.svr3 until this.
+  incbin_until 0x0dc344  ; Original useful code in sunos4as-1988-11-16.svr3 ends here.
+
+    mini_fprintf:  ; int fprintf(FILE *stream, const char *format, ...);
+		push esp  ; 1 byte.
+		add dword [esp], strict byte 3*4  ; 4 bytes.
+		push dword [esp+3*4]  ; 4 bytes.
+		push dword [esp+3*4]  ; 4 bytes.
+		call mini_vfprintf  ; 5 bytes.
+		add esp, strict byte 3*4  ; 3 bytes, same as `times 3 pop edx'.
+		ret  ; 1 byte.
+
+    mini_sprintf:  ; int mini_sprintf(char *str, const char *format, ...);
+		lea edx, [esp+0xc]  ; Argument `...'.
+		mov eax, edx  ; Smart linking could eliminate this (and use EDX instead) if mini_vsprintf(...) wasn't in use.
+      mini_sprintf.do:  ; mini_vsprintf(...) jumps here.
+		; It matches struct _SMS_FILE defined in c_stdio_medium.c. sizeof(struct _SMS_FILE).
+		push byte 0  ; .buf_off.
+		push byte -1  ; .buf_capacity_end.
+		push dword [edx-8]  ; .buf_start == str argument.
+		push byte 7  ; .dire == FD_WRITE_SATURATE. Also push the 3 .padding bytes.
+		push byte -1  ; .fd.
+		push byte 0  ; .buf_last.
+		push byte 0  ; .buf_read_ptr.
+		push byte -1  ; .buf_end: practically unlimited buffer.
+		push dword [edx-8]  ; .buf_write_ptr == str argument.
+		; int mini_vfprintf(FILE *filep, const char *format, va_list ap);
+		mov ecx, esp  ; Address of newly created struct _SMS_FILE on stack.
+		push eax  ; Argument ap of mini_vfprintf(...).
+		push dword [edx-4]  ; Argument format of mini_vfprintf(...).
+		push ecx  ; Argument filep of mini_vfprintf(...). Address of newly created struct _SMS_FILE on stack.
+		call mini_vfprintf
+		mov edx, [esp+3*4]  ; .buf_write_ptr.
+		mov byte [edx], 0  ; Add '\0'. It's OK to omit the `EDX == NULL' check here, uClibc and EGLIBC also omit it.
+		add esp, byte (3+9)*4  ; Clean up arguments of mini_vfprintf(...) and the struct _SMS_FILE from the stack.
+		ret
+
+    ; Limitation: It supports only format specifiers %s, %c, %u.
+    ; Limitation: It doesn't work as a backend of snprintf(...) and vsnprintf(...) because it doesn't support FD_WRITE_SATURATE.
+    ; Limitation: It doesn't return the number of bytes printed, it doesn't indicate error.
+    mini_vfprintf:  ; void mini_vfprintf_simple(FILE *filep, const char *format, va_list ap);
+		push ebx  ; Save.
+		push esi  ; Save.
+		push edi  ; Save.
+		sub esp, strict byte 12  ; Scratch buffer for %u.
+		push strict byte 10  ; Divisor `div' below.
+		mov eax, [esp+8*4]  ; filep.
+		call mini___M_writebuf_relax_RP1  ; mini___M_writebuf_relax_RP1(filep); Subsequent bytes written will be buffered until mini___M_writebuf_relax_RP1 below.
+		mov esi, [esp+9*4]  ; format.
+		mov edi, [esp+10*4]  ; ap.
+      .next_fmt_char:
+		lodsb
+		cmp al, '%'
+		je strict short .specifier
+		cmp al, 0
+		je strict short .done
+      .write_char:
+		call .call_mini_putc
+		jmp strict .next_fmt_char
+      .done:	mov eax, [esp+8*4]  ; filep.
+		call mini___M_writebuf_unrelax_RP1  ; mini___M_writebuf_unrelax_RP1(filep);
+		add esp, strict byte 16
+		pop edi  ; Restore.
+		pop esi  ; Restore.
+		pop ebx  ; Restore.
+		ret
+      .specifier:
+		lodsb
+		cmp al, 's'
+		je strict short .specifier_s
+		cmp al, 'u'
+		je strict short .specifier_u
+		cmp al, 'c'
+		jne strict short .write_char
+		; Fall through.
+      .specifier_c:
+		mov al, [edi]
+		add edi, strict byte 4
+		jmp strict short .write_char
+      .specifier_s:
+		mov ebx, [edi]  ; EDI := start of NUL-terminated string.
+		;test ebx, ebx
+		;jz strict short .done_str  ; Don't crash on printing NULL. Not needed.
+      .next_str_char:
+		mov al, [ebx]
+		inc ebx
+		cmp al, 0
+		je strict short .done_str
+		call .call_mini_putc
+		jmp strict short .next_str_char
+      .done_str:
+		add edi, strict byte 4
+		jmp strict short .next_fmt_char
+      .specifier_u:
+		lea ebx, [esp+4+12-1]  ; Last byte of the scratch buffer for %u.
+		mov byte [ebx], 0  ; Trailing NUL.
+		mov eax, [edi]
+      .next_digit:
+		xor edx, edx  ; Set high dword of the dividend. Low dword is in EAX.
+		div dword [esp]  ; Divide by 10.
+		add dl, '0'
+		dec ebx
+		mov [ebx], dl
+		test eax, eax  ; Put next digit to the scratch buffer.
+		jnz strict short .next_digit
+		jmp strict short .next_str_char
+      .call_mini_putc:  ; Input: AL contains the byte to be printed. Can use EAX, EDX and ECX as scratch. Output: byte is written to the buffer.
+		mov edx, [esp+8*4+4]  ; filep. (`4+' because of the return pointer of .call_mini_putc.)  AL contains the byte to be printed, the high 24 bits of EAX is garbage here.
+		; Now we do inlined putc(c, filep). Memory layout must match <stdio.h> and c_stdio_medium.c.
+		; int putc(int c, FILE *filep) { return (((char**)filep)[0]/*->buf_write_ptr*/ == ((char**)filep)[1]/*->buf_end*/) || (_STDIO_SUPPORTS_LINE_BUFFERING && (unsigned char)c == '\n') ? mini_fputc_RP3(c, filep) : (unsigned char)(*((char**)filep)[0]/*->buf_write_ptr*/++ = c); }
+		mov ecx, [edx]  ; ECX := buf_write_ptr.
+		cmp ecx, [edx+4]  ; buf_end.
+		je short .call_mini_fputc
+		cmp al, 10  ; '\n'.
+		je short .call_mini_fputc  ; In case filep == stdout and it's line buffered (_IOLBF).
+		mov [ecx], al  ; *buf_write_ptr := AL.
+		inc dword [edx]  ; buf_write_ptr += 1.
+		ret
+      .call_mini_fputc:
+		; movsx eax, al : Not needed, mini_fputc ignores the high 24 bits anyway.
+		;jmp strict near mini_fputc_RP3  ; With extra smart linking, we could hardcore an EOF (-1) return if only mini_snprintf(...) etc., bur no mini_fprintf(...) etc. is used.
+		; Fall through to mini_fputc_RP3.
+    mini_fputc_RP3:  ; int mini_fputc_RP3(int c, FILE *filep) __attribute__((__regparm__(3)));
+		push ebx  ; Save EBX.
+		mov ebx, edx
+		movzx eax, al  ; Local variable uc will become argument c.
+		push eax  ; Make room for local variable uc on the stack and set the lower 8 bits to c and the higher bits to junk.
+		mov eax, [edx+0x4]  ; `dword [edx]' is `buf_write_ptr', `dword [edx+4]' is .buf_end.
+		cmp [edx], eax
+		jne .16
+		push edx
+		call mini_fflush
+		pop edx
+		test eax, eax
+		jnz .err
+		mov eax, [ebx+0x4]
+		cmp [ebx], eax
+		jne .16
+		mov eax, esp  ; Address of local variable uc.
+		push byte 1
+		push eax
+		push dword [ebx+0x10]
+		call mini_write
+		add esp, byte 0xc
+		dec eax
+		jnz .err
+		jmp short .done
+      .16:	mov edx, [ebx]
+		inc edx
+		mov [ebx], edx  ; ++filep->buf_write_ptr++;
+		dec edx
+		pop eax  ; Local variable uc.
+		push eax
+		mov [edx], al
+		cmp al, 0xa  ; Local variable uc.
+		jne .done
+		cmp byte [ebx+0x14], 0x6  ; FD_WRITE_LINEBUF.
+		jne .done
+		push ebx
+		call mini_fflush
+		pop edx  ; Clean up the argument of mini_fflush from the stack. The pop register can be any of: EBX, ECX, EDX, ESI, EDI, EBP.
+		test eax,  eax
+		jz .done
+      .err:	pop eax
+		push byte -1  ; Return value := -1.
+      .done:	pop eax  ; Remove zero-extended local variable uc from the stack, and use it as return value.
+		pop ebx  ; Restore EBX.
+		ret
+
+    mini___M_writebuf_relax_RP1:
+		cmp byte [eax+0x14], 4  ; FD_WRITE.
+		jne .ret
+		mov edx, [eax+0x1c]
+		mov ecx, [eax+0x4]
+		cmp edx, ecx
+		jbe .ret
+		inc byte [eax+0x14]  ; FD_WRITE_RELAXED.
+		mov [eax+0x1c], ecx
+		mov [eax+0x4], edx
+      .ret:	ret
+
+    mini___M_writebuf_unrelax_RP1:
+		cmp byte [eax+0x14], 5  ; FD_WRITE_RELAXED.
+		jne .done
+		push ebx
+		mov ebx, eax
+		push eax
+		call mini_fflush
+		mov edx, [ebx+0x1c]
+		mov ecx, [ebx+0x4]
+		dec byte [ebx+0x14]  ; FD_WRITE.
+		mov [ebx+0x4], edx
+		mov [ebx+0x1c], ecx
+		pop edx
+		pop ebx
+		ret
+      .done:	xor eax, eax
+		ret
+
+    mini_fflush:  ; int mini_fflush(FILE *filep);
+		push esi
+		or ecx, byte -0x1
+		push ebx
+		mov ebx, [esp+0xc]
+		cmp byte [ebx+0x14], 0x3
+		jbe .4
+		mov esi, [ebx+0x18]
+      .6:	mov eax, [ebx]
+		cmp eax, esi
+		je .13
+		sub eax, esi
+		push eax
+		push esi
+		push dword [ebx+0x10]
+		call mini_write
+		add esp, byte 0xc
+		lea edx, [eax+0x1]
+		cmp edx, byte 0x1
+		jbe .10
+		add esi, eax
+		jmp short .6
+      .13:	xor ecx, ecx
+		jmp short .7
+      .10:	or ecx, byte -0x1
+      .7:	sub esi, [ebx+0x18]
+		add [ebx+0x20], esi
+		push ebx  ; filep.
+		call mini___M_discard_buf
+		pop eax  ; Clean up argument filep of mini___M_discard_buf(...) from the stack.
+      .4:	pop ebx
+		mov eax, ecx
+		pop esi
+		ret
+
+    mini___M_discard_buf:  ; void mini___M_discard_buf(FILE *filep);
+		mov eax, [esp+0x4]
+		mov edx, [eax+0x18]
+		mov [eax+0xc], edx
+		mov [eax], edx
+		mov [eax+0x8], edx
+		mov dl, [eax+0x14]
+		dec edx  ; DL -= 1; higher bits of EDX := junk.
+		cmp dl, 0x2
+		ja .ret
+		mov edx, [eax+0x4]
+		mov [eax], edx
+      .ret:	ret
+
+    mini_bsd_signal:  ; sighandler_t mini_bsd_signal(int signum, sighandler_t handler);
+		; SYS_signal doesn't work in qemu-i386 on Linux (it doesn't support
+		; SYS_signal), and SYSV signals also has race conditions: if the signal
+		; quickly hits again while handler is running and it hasn't
+		; reestablished itself, then the signal can kill the process.
+		;
+		; We solve both of these problems by using sigaction(2) with BSD signal
+		; semantics.
+		;
+		;push strict byte SYS_signal
+		;jmp strict near simple_syscall3
+		enter 0x20, 0  ; 0x20 == 2 * 0x10: first act at &[ebp-0x20], then oldact at &[ebp-0x10].
+		mov eax, [ebp+0xc]
+		mov [ebp-0x20+0*4], eax  ; handler.
+		mov dword [ebp-0x20+2*4], Linux_SA_RESTART  ; sa_flags.
+		xor eax, eax
+		mov [ebp-0x20+1*4], eax  ; act.sa_mask.sig[0] := 0. sizeof(sa_mask) is always 4 for Linux i386 SYS_sigaction.
+		lea eax, [ebp-0x10]  ; Argument oldact of SYS_sigaction.
+		push eax
+		lea eax, [ebp-0x20]
+		push eax  ; Argument act of SYS_sigaction.
+		push dword [ebp+0x8]  ; Argument sig of SYS_sigaction.
+		push strict byte SYS_sigaction
+		pop eax
+		call simple_syscall3.in_eax
+		; We don't bother popping arguments from the stack, `leave' below will
+		; do it for us.
+		test eax, eax
+		jnz .done  ; EAX == SIG_ERR == -1.
+		mov eax, [ebp-0x10]  ; Old handler.
+      .done:	leave
+		ret
+
+    mini_isatty:  ; int mini_isatty(int fd);
+		push ebx
+		sub esp, strict byte 0x24
+		push strict byte SYS_ioctl
+		pop eax
+		mov ebx, [esp+0x24+4+4]  ; fd argument of ioctl.
+		mov ecx, Linux_TCGETS
+		mov edx, esp  ; 3rd argument of ioctl Linux_TCGETS.
+		li3_syscall
+		add esp, strict byte 0x24  ; Clean up everything pushed.
+		pop ebx
+		; Now convert result EAX: 0 to 1, everything else to 0.
+		cmp eax, strict byte 1
+		sbb eax, eax
+		neg eax
+		ret
+
+    mini_strtod:  ; double mini_strtod(const char *str, char **endptr);
+      %define STRTOD_VAR_TMP_DIGIT 0  ; 4 bytes.
+      %define STRTOD_VAR_F32_10 4  ; 4 bytes f32.
+      ;%define STRTOD_VARS_SIZE 8
+      ; esp+9 is pushed EBP.
+      ; esp+0xc is pushed EDI.
+      ; esp+0x10 is pushed ESI.
+      ; esp+0x14 is pushed EBX.
+      ; esp+0x18 is the return address.
+      %define STRTOD_ARG_STR 0x1c  ; 4 bytes char*.
+      %define STRTOD_ARG_ENDPTR 0x20  ; 4 bytes char**.
+      STRTOD_F32_10 equ 0x41200000  ; (f32)10.0.
+      STRTOD_DECIMAL_DIG equ 21
+      STRTOD_MAX_ALLOWED_EXP equ 4973
+		push ebx
+		push esi
+		push edi
+		push ebp
+		push dword STRTOD_F32_10
+		push ebp  ; Just a shorter `sub esp, byte 4'.
+		mov ebx, [esp+STRTOD_ARG_STR]
+      .1:	mov al, [ebx]
+		cmp al, ' '
+		je .2
+		mov ah, al
+		sub ah, 9  ; "\t".
+		cmp ah, 4  ; ord("\r")-ord("\t").
+		ja .3
+      .2:	inc ebx
+		jmp short .1
+      .3:	xor ebp, ebp
+		cmp al, '-'
+		je .4
+		cmp al, '+'
+		je .5
+		jmp short .6
+      .4:	inc ebp  ; ++pos;
+      .5:	inc ebx
+      .6:	or eax, byte -1  ; num_digits = -1;
+		xor edi, edi
+		xor esi, esi
+		fldz  ; number = 0;  `number' will be kept in ST0 for most of this function.
+		xor edx, edx  ; Clear high 24 bits, for the `mov [esp+STRTOD_VAR_TMP_DIGIT], edx' below.
+      .loop7:	mov dl, [ebx]
+		sub dl, '0'
+		cmp dl, 9
+		ja .after_loop7
+		test eax, eax
+		jge .8
+		inc eax
+      .8:	test eax, eax
+		jnz .9
+		test dl, dl
+		jz .10
+      .9:	inc eax
+		cmp eax, byte STRTOD_DECIMAL_DIG
+		jg .10
+		mov [esp+STRTOD_VAR_TMP_DIGIT], edx
+		fmul dword [esp+STRTOD_VAR_F32_10]
+		fiadd dword [esp+STRTOD_VAR_TMP_DIGIT]
+      .10:	inc ebx
+		jmp short .loop7
+      .after_loop7:
+		cmp dl, '.'-'0'
+		jne .done_loop7
+		test esi, esi
+		jne .done_loop7
+		inc ebx
+		mov esi, ebx  ; pos0 = pos;
+		jmp short .loop7
+      .done_loop7:
+		test eax, eax
+		jge .18
+		test esi, esi
+		jne .17
+		; Now we use ESI for something else (i), with initial value already 0.
+		xor ecx, ecx  ; Keep high 24 bits 0, for ch and ecx below.
+		mov [esp+STRTOD_VAR_TMP_DIGIT], esi  ; 0.
+		mov esi, nan_inf_str
+      .loop13:	mov edx, ebx
+		mov eax, esi
+		lea eax, [esi+1]  ; Same size as `mov' + `inc'.
+      .14:	mov cl, [edx]
+		or cl, 0x20
+		cmp cl, [eax]
+		jne .16
+		inc edx
+		inc eax
+		cmp [eax], ch  ; Same as: cmp byte [eax], 0
+		jne .14
+		fstp st0  ; Pop `number' (originally in ST0) from the stack.
+		fild dword [esp+STRTOD_VAR_TMP_DIGIT]
+		fldz
+		fdivp st1, st0
+		test ebp, ebp
+		je .15
+		fchs  ; number = -number.
+      .15:	mov cl, [esi]
+		add ebx, ecx
+		dec ebx
+		dec ebx
+		jmp short .store_done
+      .16:	mov cl, [esi]
+		add esi, ecx
+		inc byte [esp+STRTOD_VAR_TMP_DIGIT]  ; Set it to anything positive.
+		cmp cl, ch
+		jne .loop13
+      .17:	mov ebx, [esp+STRTOD_ARG_STR]  ; pos = str;
+		jmp short .store_done
+      .18:	cmp eax, byte STRTOD_DECIMAL_DIG
+		jle .19
+		sub eax, byte STRTOD_DECIMAL_DIG
+		add edi, eax
+      .19:	test esi, esi
+		je .20
+		mov eax, esi
+		sub eax, ebx
+		add edi, eax
+      .20:	test ebp, ebp  ; if (negative);
+		je .21
+		fchs  ; number = -number;
+      .21:	mov al, [ebx]
+		or al, 0x20
+		cmp al, 'e'
+		jne .29
+		mov [esp+STRTOD_VAR_TMP_DIGIT], ebx  ; pos1 = pos;  ! Maybe push ebx/pop ebx? Only if we don't use other variables in the meantime.
+		xor esi, esi
+		inc esi  ; negative = 1;
+		inc ebx  ; Skip past the 'e'.
+		mov al, [ebx]
+		cmp al, '-'
+		je .22
+		cmp al, '+'
+		je .23
+		jmp short .24
+      .store_done:  ; ; We put this to the middle so that we don't need `jmp near'.  STRTOD_VAR_NUMBER is already populated.
+		mov eax, [esp+STRTOD_ARG_ENDPTR]  ; Argument endptr.
+		test eax, eax
+		je .36
+		mov [eax], ebx
+      .36:	fstp qword [esp]
+		fld qword [esp]  ; By doing this fstp+fld combo, we round the result to f64.
+		times 2 pop ebp  ; Just `add esp, byte STRTOD_VARS_SIZE'.
+		pop ebp
+		pop edi
+		pop esi
+		pop ebx
+		ret
+      .22:	neg esi  ; negative = -1;
+      .23:	inc ebx
+      .24:	mov ebp, ebx
+		xor eax, eax
+		xor edx, edx  ; Clear high 24 bits, for the `add eax, edx' below.
+      .loop25:	mov dl, [ebx]
+		sub dl, '0'
+		cmp dl, 9
+		ja .27
+		cmp eax, STRTOD_MAX_ALLOWED_EXP  ; if (exponent_temp < STRTOD_MAX_ALLOWED_EXP);
+		jge .26
+		imul eax, byte 10
+		add eax, edx
+      .26:	inc ebx
+		jmp short .loop25
+      .27:	cmp ebx, ebp
+		jne .28
+		mov ebx, [esp+STRTOD_VAR_TMP_DIGIT]  ; pos = pos1;
+      .28:	imul eax, esi
+		add edi, eax
+      .29:	fldz
+		fucomp st1  ; if (number == 0.);  True for +0.0 and -0.0.
+		fnstsw ax
+		sahf
+		je .store_done  ; if (number == 0.) goto DONE;
+		mov eax, edi
+		test eax, eax
+		jz .store_done
+		jge .skip_neg
+		neg eax  ; Exponent_temp = -exponent_temp;
+      .skip_neg:
+		fld dword [esp+STRTOD_VAR_F32_10]  ; p_base = 10.0, but with higher (f80) precision.
+      .loop31:	; Now: ST0 is p_base, ST1 is number.
+		test al, 1
+		jz .34
+		test edi, edi
+		jge .32
+		fdiv st1, st0  ; number /= p_base;
+		jmp short .34
+      .32:	fmul st1, st0  ; number *= p_base;
+      .34:	fmul st0, st0  ; p_base *= p_base;
+		shr eax, 1
+		jnz .loop31
+		; Now: ST0 is p_base, ST1 is number.
+		fstp st0  ; Pop p_base. `number' remains on the stack.
+		jmp short .store_done
+
+    better_getargs:
+		call getargs
+		cmp [filenames_0], strict byte 0
+		jne strict near after_better_getargs
+		jmp strict near fatal_usage
+
+    ; Called from mini_exit(...). It flushes all files opened by mini_fopen(...).
+    mini___M_start_flush_opened:  ; void mini___M_start_flush_opened(void);
+		push ebx
+		mov ebx, mini___M_global_files
+      .next_file:
+		cmp ebx, mini___M_global_files.end
+		je .after_files
+		push ebx
+		call mini_fflush
+		pop eax  ; Clean up argument of mini_fflush.
+		add ebx, byte 0x24  ; sizeof(struct _SMS_FILE).
+		jmp short .next_file
+      .after_files:
+		pop ebx
+		ret
 
     mini_strncpy:  ; char *mini_strncpy(char *dest, const char *src, size_t n);
 		mov ecx, [esp+0xc]  ; Argument n.
@@ -2461,7 +2474,8 @@ section .xtext
     xfill_until s.xtext.vstart+s.xtext.fsize
 
 section .xdata
-  assert_addr 0x111bb  ; Gap between 0x11000 and 0x111b7.
+  assert_addr 0x11074  ; Data gap between 0x11074 and 0x111b7.
+  fill_until  0x111bb
   assert_addr 0x110ad+0x108+6
   str_tmp:	db '/tmp', 0  ; P_tmpdir, Linux-specific.
   str_tmpdir:	db 'TMPDIR', 0
