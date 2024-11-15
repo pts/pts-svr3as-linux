@@ -1,51 +1,72 @@
+/
+/ test.s: SVR3 assembler test program
+/ by pts@fazekas.hu at Fri Nov 15 04:00:30 CET 2024
+/
+/ Based on SVR3 hello-world program assembly source code on
 / https://forum.vcfed.org/index.php?threads/history-behind-the-disk-images-of-at-t-unix-system-v-release-4-version-2-1-for-386.68796/
 /
-/ Since there is "as" and "ld", it is possible to build "helloworld" in pure AT&T i386 assembler using direct call to kerlel in "i386 SYSV ABI" style.
+/ Here is how to compile and run on an SVR3 system (`ld -e _start' is the
+/ default):
 /
-/ $ as test.s
-/ $ ld -s -e entry -o test test.o
-/ $ ./test
-/ Hello, world!
+/   $ as test.s
+/   $ ld -s -o test test.o
+/   $ ./test
+/   Hello, world!
+/
+/ Here is how to compile and run an a modern Linux i386 or amd64 system,
+/ using ibcs-us:
+/
+/   $ ibcs-us ./svr3as-1988-05-27.svr3 test.s
+/   $ ibcs-us ./svr3ld-1988-05-27.svr3 -s -o test test.o
+/   $ ibcs-us ./test
+/   Hello, World!
+/
+/ TODO(pts): Why does `ibcs-us ./svr3as-1987-10-28.svr3 test.s' segfault on
+/ Linux i386, while the Linux port works? Is the filename of the assembler
+/ too long? How did old versions work?
+/
 
-	.file	"test.s"
-	.version	"02.01"  / At most "02.01".
-	.set	WRITE,4
-	.set	EXIT,1
-	.text
-	.align	4
-	.globl	entry
-entry:
-	pushl	%ebp
-	movl	%esp,%ebp
-	subl	$8,%esp
+.file "test.s"
+.version "02.01"  / At most "02.01" works with SVR3 assemblers.
+.set WRITE, 4
+.set EXIT, 1
+.text
+.align 4
 
-	pushl	$14		/length
-	pushl	$hello
-	pushl	$1		/STDOUT
-	pushl	$0
-	movl	$WRITE,%eax
-	lcall	$0x07,$0
-	addl	$16,%esp
+.globl _start
+_start:	pushl %ebp
+	movl %esp, %ebp
+	subl $8, %esp
 
-	pushl	$0
-	movl	$EXIT,%eax
-	lcall	$0x07,$0
+	call print_msg
+	call exit
+	/ Not reached.
+
+print_msg:
+	pushl $14  /length
+	pushl $hello
+	pushl $1  /STDOUT
+	pushl $0
+	movl $WRITE, %eax
+	lcall $0x07, $0  / i386 SYSV ABI syscall.
+	addl $16, %esp
+	ret
+
+exit:	pushl $0
+	movl $EXIT, %eax
+	lcall $0x07, $0  / i386 SYSV ABI syscall.
+	ret
+
+	call hello  / Doesn't make sense. Not reached.
 
 	.data
-	.align	4
+	.align 4
 hello:
-	.byte	0x48,0x65,0x6c,0x6c,0x6f,0x2c, 0x20,0x77,0x6f,0x72
-	.byte	0x6c,0x64,0x21,0x0a,0x00
+	.string "Hello, World!\n"  / Automatically NUL-terminated.
 hello_end:
+
 	.align 4
 	.byte 0x40, 0x40, 0x40, 0x40
-	/.bcd 1
-	/.bcd 12
-	/.bcd 123
-	/.bcd 1234
-	/.bcd 12345
-	/.bcd 123456
-	/.bcd 1234567
 	/ `.bcd ...' zero-extends `...' on the left to 20 decimal digits `.bcd ABCDEFGHIJKLMNOPQRST', then it emits 10 bytes like `.byte 0xRQ, 0xTS, 0xNM, 0xPO, 0xJI, 0xLK, 0xFE, 0xHG, 0xBA, 0xDC'.
 	.bcd 12345678906543210987  // .byte 0x90, 0x78, 0x34, 0x12, 0x09, 0x56, 0x65, 0x87, 0x21, 0x43
 	.value 0xabcd  // 2 bytes, little-endian, GNU as(1) also supports .short as a synonym of .value: .short 0xabcd
