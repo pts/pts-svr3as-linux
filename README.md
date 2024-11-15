@@ -114,6 +114,7 @@ The SVR3 assemblers (`svr3as-*`) have the following features:
 * Floating-point (FPU, floating point, x87, 8087, 80387) registers: %st, %st(0), %st(1), %st(2), %st(3), %st(4), %st(5), %st(6), %st(7).
 * Assembler directives: .align, .bcd, .bss, .byte, .comm, .data, .def, .dim, .double, .endef, .even, .file, .float, .globl, .ident, .jmpbeg, .jmpend, .lcomm, .line, .llong, .ln, .long, .scl, .section, .set, .size, .string, .tag, .temp, .text, .tv, .type, .val, .value, .version.
 * Conditional assembly (e.g. .if, .ifdef, .else, .endif) is not supported.
+* Only Intel x86 32-bit mode (i.e. for 386 protected mode) is supported. x86 16-bit mode (i.e. for real mode) and 64-bit mode (i.e. long mode) are not supported. That is, byte 0x40 means `inc eax` (32-bit) and never `inc ax` (16-bit) or `inc rax` (64-bit).
 
 The *instab* table values are the same in all 3 assemblers, execept that
 `svr3as-1989-10-03` has different opcode values for `nop`. (This may be just
