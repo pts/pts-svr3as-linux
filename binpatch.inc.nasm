@@ -274,7 +274,12 @@ cpu 386
       db 0x7F,'ELF',1,1,1,__OSABI_Linux,0,0,0,0,0,0,0,0,2,0,3,MISSING_END_AT_EOF  ; Without MISSING_END_AT_EOF here, compilation would succeed without the `end' command at the end of the source file.
       dd 1,_start,Elf32_Phdr0-Elf32_Ehdr,0,0
       dw Elf32_Phdr0-Elf32_Ehdr,0x20,(Elf32_Phdr_end-Elf32_Phdr0)/0x20,0x28,0,0
-      Elf32_Phdr0: dd 1, 0, s.ncomment.vstart, s.ncomment.vstart, p.re.fsize, p.re.fsize, 5, 0x1000
+      %ifdef p.rw.first  ; Can be defined in program.nasm, affects only `-f bin' output. GNU ld(1) with `-f elf' always decides itself.
+        Elf32_Phdr0: dd 1, p.rw.fout, p.rw.vstart, p.rw.vstart, p.rw.fsize, p.rw.vsize.in.phdr, 6, 0x1000
+        Elf32_Phdr1: dd 1, p.re.fout, p.re.vstart, p.re.vstart, p.re.fsize, p.re.fsize, 5, 0x1000
+      %else
+        Elf32_Phdr0: dd 1, p.re.fout, p.re.vstart, p.re.vstart, p.re.fsize, p.re.fsize, 5, 0x1000
+      %endif
       ; LOAD off 0x0000ede4 vaddr 0x00400de4 paddr 0x00400de4 align 2**12 filesz 0x00001fbc memsz 0x00002a68 flags rw-
       ; Generate Elf32_Phdr1 later, only when we know we need it (because of .xdata, .xbss etc.).
     %else
@@ -690,7 +695,22 @@ extern emu_seh0_frame
   %endif
 %endm
 
-%define p.rw.vsize.in.phdr1 p.rw.vsize  ; The user can override it.
+; Clears first page of .xbss. Needed by p.rw.first on Linux 1.0. We have to
+; clear it, because it may overlap with the beginning of .xtext, because
+; they are mapped from the same file page. Linux 1.0 doesn't work without
+; clearing, Linux 5.4.0 does the clearing itself, i.e. it maps the page with
+; the end replaced with NULs.
+%macro clear.xbss.page0 0
+  %define clear.xbss.page0.used
+  %if (s.xdata.vstart+s.xdata.fsize)&0xfff
+    mov al, 0  ; Play it safe. EAX starts at 0 according to https://asm.sourceforge.net/articles/startup.html
+    mov edi, (s.xdata.vstart+s.xdata.fsize)
+    mov ecx, ((s.xdata.vstart+s.xdata.fsize+0xfff)&~0xfff)-(s.xdata.vstart+s.xdata.fsize)
+    rep stosb
+  %endif
+%endm
+
+%define p.rw.vsize.in.phdr p.rw.vsize  ; The user can override it.
 
 %macro end 0  ; Mandatory at the end of the .nasm source file if any of the .x* sections have been defined.
   MISSING_END_AT_EOF equ 0  ; Prevent NASM error.
@@ -699,8 +719,10 @@ extern emu_seh0_frame
     __ensure_section_ncomment
       %ifidn __OUTPUT_FORMAT__, bin
         %ifdef s.xdata.used  ; !! TODO(pts): Also for .idata etc. Which of those is writable?
-          ; TODO(pts): Simulate `ld -N' by merging the two Phdrs.
-          Elf32_Phdr1: dd 1, p.rw.fout, p.rw.vstart, p.rw.vstart, p.rw.fsize, p.rw.vsize.in.phdr1, 6, 0x1000
+          %ifndef p.rw.first  ; Defined by program.nasm.
+            ; TODO(pts): Simulate `ld -N' by merging the two Phdrs.
+            Elf32_Phdr1: dd 1, p.rw.fout, p.rw.vstart, p.rw.vstart, p.rw.fsize, p.rw.vsize.in.phdr, 6, 0x1000
+          %endif
         %endif
         Elf32_Phdr_end:
       %endif
@@ -767,13 +789,7 @@ extern emu_seh0_frame
       __check_no_x_section .reloc
       __check_no_x_section .xdebug
       ;__check_x_section .xbss  ; Can be either way.
-      s.ncomment.fsize equ s.ncomment.end-s.ncomment.start
-      s.ncomment.vstart equ (s.xtext.vstart-s.ncomment.fsize)&~0xfff
-      s.xtext.fout equ (s.ncomment.fsize)+((s.xtext.vstart-s.ncomment.fsize)&0xfff)
-      __check_fout_and_vstart .xtext  ; The `s.xtext.fout equ' above ensures it.
-      p.re.fsize equ s.xtext.fout+s.xtext.fsize
       %ifdef s.xdata.used
-        ; TODO(pts): When autocomputing s.xdata.vstart from the autocomputed s.xtext.fsize, also consider align=4 default.
         %if s.xtext.vstart<=s.xdata.vstart && ((s.xtext.vstart+s.xtext.fsize)&~0xfff) >= (s.xdata.vstart&~0xfff)
           %error PAGE_OVERLAP_IN_XTEXT_AND_XDATA  ; Solution: just add a multiple of 0x1000 to s.xdata.vstart in define.xdata.
           __had_error
@@ -782,31 +798,64 @@ extern emu_seh0_frame
           %error PAGE_OVERLAP_IN_XDATA_AND_XTEXT  ; Solution: just add a multiple of 0x1000 to s.text.vstart in define.xdata.
           __had_error
         %endif
-        ; Simplified below:
-        ;%if ((s.xtext.fout+s.xtext.fsize)&0xfff) <= ((s.xdata.vstart)&0xfff)
-        ;  s.xdata.fout equ ((s.xtext.fout+s.xtext.fsize)&~0xfff) + ((s.xdata.vstart)&0xfff)
-        ;%else
-        ;  s.xdata.fout equ ((s.xtext.fout+s.xtext.fsize)&~0xfff) + ((s.xdata.vstart)&0xfff) + 0x1000
-        ;%endif
-        s.xdata.fout equ (s.xtext.fout+s.xtext.fsize)+((s.xdata.vstart-s.xtext.fout-s.xtext.fsize)&0xfff)
-        %ifdef s.xbss.used
-          s.xbss.vstart equ s.xdata.vstart+s.xdata.fsize  ; TODO(pts): When autocomputing s.xbss.vstart from the autocomputed s.xdata.fsize, also consider align=4 default.
-        %endif
-        __check_fout_and_vstart .xdata  ; The `s.xdata.fout equ' above ensures it.
-        p.rw.fout equ s.xdata.fout
-        p.rw.vstart equ s.xdata.vstart
-        p.rw.fsize equ s.xdata.fsize
-        p.rw.vsize equ s.xdata.vsize  ; Also includes .xbss.
-      %else
-        %ifdef s.xbss.used  ; !s.xdata.used implies !s.xbss.used.
-          %error XBSS_WITHOUT_XDATA
+      %endif
+      s.ncomment.fsize equ s.ncomment.end-s.ncomment.start
+      %ifdef s.xbss.used
+        s.xbss.vstart equ s.xdata.vstart+s.xdata.fsize  ; TODO(pts): When autocomputing s.xbss.vstart from the autocomputed s.xdata.fsize, also consider align=4 default.
+      %endif
+      %ifdef p.rw.first  ; Defined by program.nasm.
+        %ifndef s.xdata.used
+          %error P_RW_FIRST_WITHOUT_XDATA
           __had_error
         %endif
-        %if 0  ; We don't even generate Elf32_Phdr1.
-          p.rw.fout equ s.ncomment.fsize+s.xtext.fsize
-          p.rw.vstart equ (s.ncomment.vstart+p.re.fsize+0xfff)&~0xfff  ; Dummy.
-          p.rw.fsize equ 0
-          p.rw.vsize equ 0
+        %ifndef clear.xbss.page0.used
+          %error MISSING_USE_OF_CLEAR_XBSS_PAGE0  ; To fix it, add `clear.xbss.page0' near your _start.
+          __had_error
+        %endif
+        s.ncomment.vstart equ (s.xdata.vstart-s.ncomment.fsize)&~0xfff
+        s.xdata.fout equ (s.ncomment.fsize)+((s.xdata.vstart-s.ncomment.fsize)&0xfff)
+        __check_fout_and_vstart .xdata  ; The `s.xdata.fout equ' above ensures it.
+        p.rw.fsize equ s.xdata.fout+s.xdata.fsize
+        p.rw.vsize equ s.xdata.vsize  ; Also includes .xbss.
+        p.rw.fout equ 0
+        p.rw.vstart equ s.ncomment.vstart
+        s.xtext.fout equ (s.xdata.fout+s.xdata.fsize)+((s.xtext.vstart-s.xdata.fout-s.xdata.fsize)&0xfff)
+        __check_fout_and_vstart .xtext  ; The `s.xtext.fout equ' above ensures it.
+        p.re.fout equ s.xtext.fout
+        p.re.vstart equ s.xtext.vstart
+        p.re.fsize equ s.xtext.fsize
+      %else
+        s.ncomment.vstart equ (s.xtext.vstart-s.ncomment.fsize)&~0xfff
+        s.xtext.fout equ (s.ncomment.fsize)+((s.xtext.vstart-s.ncomment.fsize)&0xfff)
+        __check_fout_and_vstart .xtext  ; The `s.xtext.fout equ' above ensures it.
+        p.re.fsize equ s.xtext.fout+s.xtext.fsize
+        p.re.fout equ 0
+        p.re.vstart equ s.ncomment.vstart
+        %ifdef s.xdata.used
+          ; TODO(pts): When autocomputing s.xdata.vstart from the autocomputed s.xtext.fsize, also consider align=4 default.
+          ; Simplified below:
+          ;%if ((s.xtext.fout+s.xtext.fsize)&0xfff) <= ((s.xdata.vstart)&0xfff)
+          ;  s.xdata.fout equ ((s.xtext.fout+s.xtext.fsize)&~0xfff) + ((s.xdata.vstart)&0xfff)
+          ;%else
+          ;  s.xdata.fout equ ((s.xtext.fout+s.xtext.fsize)&~0xfff) + ((s.xdata.vstart)&0xfff) + 0x1000
+          ;%endif
+          s.xdata.fout equ (s.xtext.fout+s.xtext.fsize)+((s.xdata.vstart-s.xtext.fout-s.xtext.fsize)&0xfff)
+          __check_fout_and_vstart .xdata  ; The `s.xdata.fout equ' above ensures it.
+          p.rw.fout equ s.xdata.fout
+          p.rw.vstart equ s.xdata.vstart
+          p.rw.fsize equ s.xdata.fsize
+          p.rw.vsize equ s.xdata.vsize  ; Also includes .xbss.
+        %else
+          %ifdef s.xbss.used  ; !s.xdata.used implies !s.xbss.used.
+            %error XBSS_WITHOUT_XDATA
+            __had_error
+          %endif
+          %if 0  ; We don't even generate Elf32_Phdr1.
+            p.rw.fout equ s.ncomment.fsize+s.xtext.fsize
+            p.rw.vstart equ (s.ncomment.vstart+p.re.fsize+0xfff)&~0xfff  ; Dummy.
+            p.rw.fsize equ 0
+            p.rw.vsize equ 0
+          %endif
         %endif
       %endif
     %else  ; of %ifidn __OUTPUT_FORMAT__, bin
