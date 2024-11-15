@@ -61,6 +61,7 @@ exit:	pushl $0
 
 	.data
 	.align 4
+	.long 42
 hello:
 	.string "Hello, World!\n"  / Automatically NUL-terminated.
 hello_end:
