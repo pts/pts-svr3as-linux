@@ -697,6 +697,13 @@ extern emu_seh0_frame
   %ifdef __define_x_sections  ; At least one of the .x* sections have been defined.
     __define_x_sections  ; Define all .x* sections.
     __ensure_section_ncomment
+      %ifidn __OUTPUT_FORMAT__, bin
+        %ifdef s.xdata.used  ; !! TODO(pts): Also for .idata etc. Which of those is writable?
+          ; TODO(pts): Simulate `ld -N' by merging the two Phdrs.
+          Elf32_Phdr1: dd 1, p.rw.fout, p.rw.vstart, p.rw.vstart, p.rw.fsize, p.rw.vsize.in.phdr1, 6, 0x1000
+        %endif
+        Elf32_Phdr_end:
+      %endif
       s.ncomment.end:
     %ifdef s.header.used
       section.header
@@ -750,12 +757,6 @@ extern emu_seh0_frame
         s.xbss.end:
     %endif
     %ifidn __OUTPUT_FORMAT__, bin
-      __ensure_section_ncomment
-        %ifdef s.xdata.used  ; !! TODO(pts): Also for .idata etc. Which of those is writable?
-          ; TODO(pts): Simulate `ld -N' by merging the two Phdrs.
-          Elf32_Phdr1: dd 1, p.rw.fout, p.rw.vstart, p.rw.vstart, p.rw.fsize, p.rw.vsize.in.phdr1, 6, 0x1000
-        %endif
-        Elf32_Phdr_end:
       section .bss
       ; !! TODO(pts): Make it work with more .x* sections, starting with .xrodata.
       __check_no_x_section .header
