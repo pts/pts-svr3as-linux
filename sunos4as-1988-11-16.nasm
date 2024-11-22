@@ -21,6 +21,7 @@
 ; smaller (now the gap is 0x0c4000..0x0d1000); this would affect
 ; relocations.
 ;
+; !! Who creates the B and C temporary files, and when do they get closed? If not used, don't even create them. There is a subsequent open("/tmp/asB20oc8p", O_WRONLY|O_CREAT|O_TRUNC, 0666) = 4
 ; !! Make ferror_rp3zz report previous read and write errorr.
 ; !! Are we sure that read-write opened files are not needed (i.e. because of backward seeks)?
 ; !! Make unknown flags an error rather than a warning. Fix it in all 3 .nasm sources.
@@ -392,6 +393,7 @@ section .xtext
     call mini_exit
     incbin_until 0x0d16df
     jmp strict near better_getargs  ; Overrides getargs.
+    assert_addr 0x0d16e4
     after_better_getargs:
     incbin_until 0x0d16f2
       call mini_fopen
@@ -474,8 +476,17 @@ section .xtext
     xfill_until 0x0d234f, nop  ; Gap of 2+8 bytes. Previously it was: mov dword [yynerrs], 0
     .after_yynerrs1:
     incbin_until 0x0d236a
-    jmp strict short .after_nodebug1  ; Previously it was code using yydebug.
+    jmp strict short yyparse2.after_nodebug1  ; Previously it was code using yydebug.
+
+    mini_malloc:  ; void *mini_malloc(size_t size);
+		push dword [esp+4]
+		push byte 0
+		call mini_realloc
+		times 2 pop edx  ; Clean up arguments of mini_realloc from the stack.
+		ret
+
     xfill_until 0x0d238a, nop  ; Gap of 0x1e bytes.
+    yyparse2:
     .after_nodebug1:
     incbin_until 0x0d254e
     jmp strict short .after_yynerrs2
@@ -757,13 +768,6 @@ section .xtext
 		pop esi
 		ret
 
-    mini_malloc:  ; void *mini_malloc(size_t size);
-		push dword [esp+4]
-		push byte 0
-		call mini_realloc
-		times 2 pop edx  ; Clean up arguments of mini_realloc from the stack.
-		ret
-
     mini_realloc:  ; void *mini_realloc(void *ptr, size_t size);
       ; This is a short and fast (O(1) per operation) allocator, but it wastes
       ; memory (less than 50%).
@@ -915,35 +919,39 @@ section .xtext
       ; then doubles it when necessary. It is implemented using Linux system
       ; call SYS_mmap. free(...)ing is
       ; not supported. Returns an unaligned address (which is OK on x86).
-		push ebx
-		mov eax, [esp+8]  ; Argument named size.
+		mov eax, [esp+4]  ; Argument named size.
 		test eax, eax
-		jle .18
-		mov ebx, eax
+		jnz .1
+		ret  ; Return NULL if size == 0.
+      .1:	push ebx
+		xchg ebx, eax  ; EBX := EAX (size); EAX := junk.
 		cmp dword [_malloc_simple_base], byte 0
 		jne .7
 		mov eax, ((s.xtext.vstart+s.xtext.fsize+0xfff)&~0xfff)  ; Our simulated break address. This is specific to programs with .xbss-then-.xtext virtual memory order.
+		mov [_malloc_simple_end], eax
 		mov [_malloc_simple_free], eax
 		mov [_malloc_simple_base], eax
 		mov eax, 0x10000  ; 64 KiB minimum allocation.
-      .9:	mov edx, [_malloc_simple_base]
+      .9:	; Grow the buffer by EAX bytes.
+		mov edx, [_malloc_simple_base]
 		add eax, edx
 		jc .18
-		push eax  ; Save new.
-		push edx  ; Save old.
+		push eax  ; Save new desired end.
+		;push edx  ; Save old.
 		push strict byte 0  ; offset.
 		push strict byte -1 ; fd.
 		push strict byte MAP.PRIVATE|MAP.ANONYMOUS|MAP.FIXED  ; flags.
 		push strict byte PROT.READ|PROT.WRITE  ; prot.
+		mov edx, [_malloc_simple_end]  ; Only allocate [end : EAX]. Allocating [base : EAX] would clear existing used [base : end] bytes with NUL.
 		sub eax, edx
 		push eax  ; length.
 		push edx  ; addr.
 		mov edx, esp  ; buffer, to be passed to sys_mmap(...).
 		call mini_malloc_simple_grow_with_mmap_RP3X
-		pop edx  ; Restore old.
-		cmp eax, edx  ; Compare return value of SYS_mmap to old.
-		pop eax  ; Restore new.
-		jne .18 ; Allocation failed.
+		;pop edx  ; Restore old.
+		cmp eax, byte -1  ; MAP_FAILED.
+		pop eax  ; Restore: EAX := new achieved end.
+		je .18 ; Allocation failed.
 		mov [_malloc_simple_end], eax  ; Record new.
       .7:	mov edx, [_malloc_simple_end]
 		mov eax, [_malloc_simple_free]
@@ -961,7 +969,7 @@ section .xtext
 		mov eax, edx
       .22:	add eax, edx
 		test eax, eax  ; ZF=..., SF=..., OF=0.
-		jg .9  ; Jump iff ZF=0 and SF=OF=0. Why is this correct?
+		jg .9  ; Jump iff ZF=0 and SF=OF=0. Why is this correct? !!! Growing the allocation fails with a segfault.
       .18:	xor eax, eax
       .17:	pop ebx
 		ret
@@ -1554,7 +1562,7 @@ section .xtext
 		cmp al, 'v'  ; New functionality: New flag -dv: Ignore the .version directive, do not add a string to the .comment section.
 		jne .not_v
 		;mov byte [handle_directive_version], yyparse.case_do_not_call_comment  ; Modifying just the last byte makes this `mov' shorter. Unfortunately it doesn't work in `nasm -f elf' because NASM doesn't support 1-byte relocations.
-		mov dword [handle_directive_version], yyparse.case_do_not_call_comment
+		mov dword [handle_directive_version], yyparse2.case_do_not_call_comment
 		ret
 		.not_v:
 		cmp al, 'g'  ; New functionality: New flag -dg: Omit the "-lg" symbol, for compatibility with SVR3 assembler.
@@ -2505,8 +2513,8 @@ section .xdata
     fill_until 0x1781c
   r 0x17828+2, 0x17dcc+2
   incbin_until 0x17dd0
-    handle_directive_ident: dd yyparse.case_call_comment  ; Original.
-    handle_directive_version: dd yyparse.case_call_comment  ; Original. Specifying -dw will change it to yyparse.do_not_call_comment.
+    handle_directive_ident: dd yyparse2.case_call_comment  ; Original.
+    handle_directive_version: dd yyparse2.case_call_comment  ; Original. Specifying -dw will change it to yyparse.do_not_call_comment.
   r 0x17dd8+2, 0x17e58+2
   incbin_until 0x17f2c  ; Gap of 0x14 bytes. Previously it was an yydebug message.
     fill_until 0x17f40
@@ -2535,7 +2543,8 @@ section .xbss
     .end:
     stderr_buf: resb 0x400  ; Match glibc 2.19 stderr buffer size on a TTY.
     .end:
-    _malloc_simple_base: resd 1  ; char *base;
+    ; [base : free] is alredy allocated, and [free : end] is available for allocation.
+    _malloc_simple_base: resd 1  ; char *base;  Initialized once the the base (starting) pointer of the memory region managed by mini_malloc_simple_unaligned.
     _malloc_simple_free: resd 1  ; char *free;
     _malloc_simple_end: resd 1  ; char *end;
     mini_realloc_free_bucket_heads: resd 0x20-2
